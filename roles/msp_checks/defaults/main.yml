@@ -11,3 +11,4 @@ msp_baseline_defaults:
   disk.warn: 80
   disk.crit: 90
   disk.ignore: ""
+  guests.exclude: ""          # VMIDs that never appear in any dump, state file or note

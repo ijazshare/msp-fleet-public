@@ -70,6 +70,12 @@ x sh -c 'test ! -e /var/lib/msp/dump/etc/pve/priv && test -z "$(find /var/lib/ms
 x stat -c %a /var/lib/msp/dump | grep -q '^700$'; t $? "dump dir is root-only (0700)"
 d=$(x systemctl show msp-check@configdump.timer -p TimersMonotonic --value | grep -o 'OnUnitActiveUSec=[^ ;]*' | tr '\n' ' '); [ "$d" = "OnUnitActiveUSec=6h " ]; t $? "configdump interval override replaces default ($d)"
 
+# 9b guests.exclude: excluded guest config never lands in the dump
+x sh -c 'mkdir -p /etc/pve/nodes/sb/qemu-server /etc/pve/nodes/sb/lxc; echo "name: keep" > /etc/pve/nodes/sb/qemu-server/100.conf; echo "name: hide" > /etc/pve/nodes/sb/qemu-server/130.conf; echo "guests.exclude = 130" >> /etc/msp/baseline.conf'
+x systemctl start msp-check@configdump.service
+x sh -c 'test -e /var/lib/msp/dump/etc/pve/guests/100.conf && test ! -e /var/lib/msp/dump/etc/pve/guests/130.conf'; t $? "excluded guest 130 absent from dump, 100 present"
+x rm -rf /etc/pve
+
 # 10 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"
 [ $fail = 0 ]
