@@ -18,12 +18,20 @@
 - name: Box knows the hypervisors by their real host keys
   hosts: box
   tasks:
-    - name: Read each hypervisor's host key
+    - name: Gated hypervisors at this site (the box only ever talks to these)
+      ansible.builtin.set_fact:
+        msp_gated_hosts: >-
+          {%- set l = [] -%}
+          {%- for h in groups['pve_hosts'] if hostvars[h].site == site and (hostvars[h].msp_gate | default(true)) -%}
+            {%- set _ = l.append(h) -%}
+          {%- endfor -%}
+          {{ l }}
+    - name: Read each gated hypervisor's host key
       ansible.builtin.slurp:
         src: /etc/ssh/ssh_host_ed25519_key.pub
       delegate_to: "{{ item }}"
       register: hk
-      loop: "{{ groups['pve_hosts'] | select('match', site ~ '-.*') | list }}"
+      loop: "{{ msp_gated_hosts }}"
     - name: known_hosts for llm and for the checks
       ansible.builtin.known_hosts:
         path: "{{ item.1 }}"
