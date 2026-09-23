@@ -1,6 +1,6 @@
 - name: Packages
   ansible.builtin.apt:
-    name: [curl, bsdutils, util-linux]
+    name: [curl, bsdutils, util-linux, git]
     state: present
     update_cache: true
     cache_valid_time: 86400
@@ -24,7 +24,7 @@
     src: "{{ item }}"
     dest: /usr/local/bin/{{ item }}
     mode: "0755"
-  loop: [msp-run-check, msp-alert]
+  loop: [msp-run-check, msp-alert, msp-dump]
 
 - name: Effective baseline (defaults, then timers derived from msp_checks, then site overrides)
   ansible.builtin.set_fact:
@@ -46,6 +46,21 @@
     dest: /etc/systemd/system/{{ item }}
     mode: "0644"
   loop: ["msp-check@.service", "msp-check@.timer", "msp-alert@.service"]
+  notify: daemon-reload
+
+- name: Drop-in directories exist
+  ansible.builtin.file:
+    path: /etc/systemd/system/msp-check@{{ item.key }}.timer.d
+    state: directory
+    mode: "0755"
+  loop: "{{ msp_intervals | dict2items }}"
+
+- name: Per-check interval drop-ins
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/msp-check@{{ item.key }}.timer.d/interval.conf
+    content: "[Timer]\nOnUnitActiveSec=\nOnBootSec=2min\nOnUnitActiveSec={{ item.value }}\n"
+    mode: "0644"
+  loop: "{{ msp_intervals | dict2items }}"
   notify: daemon-reload
 
 - name: Flush handlers

@@ -12,7 +12,7 @@ t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 
 # 2 three timers scheduled
 n=$(x systemctl list-timers --all --no-legend --plain 'msp-check@*' | grep -vc '^-' )
-[ "$n" = 4 ]; t $? "4 timers scheduled (got $n)"
+[ "$n" = 5 ]; t $? "5 timers scheduled (got $n)"
 
 # 3 a check run writes state and a heartbeat
 x systemctl start msp-check@disk.service
@@ -56,6 +56,20 @@ x grep -q 'heartbeat hc-heartbeat offline' /var/log/msp/heartbeat.log; t $? "end
 x grep -q '^rc=0' /var/lib/msp/state/heartbeat.state; t $? "check still ran and wrote state while offline"
 x systemctl start hc-fake
 
-# 9 idempotence is checked by the caller (second playbook run: changed=0)
+# 9 item 4: config dump initializes, is unchanged on rerun, and one edit is exactly one WARN naming the file
+x systemctl start msp-check@configdump.service
+x grep -q 'initialized' /var/lib/msp/state/configdump.state; t $? "dump initialized: $(x sed -n 's/^msg=//p' /var/lib/msp/state/configdump.state)"
+x systemctl start msp-check@configdump.service
+x grep -q '^msg=OK config unchanged' /var/lib/msp/state/configdump.state; t $? "second dump unchanged"
+x sh -c 'echo "# drift test" >> /etc/hosts'
+x systemctl start msp-check@configdump.service
+x grep -q '^rc=1' /var/lib/msp/state/configdump.state && x grep -q 'etc/hosts' /var/lib/msp/state/configdump.state; t $? "edit -> WARN naming the file: $(x sed -n 's/^msg=//p' /var/lib/msp/state/configdump.state)"
+x grep -q '^POST /hc-configdump/log ' /var/log/msp/hc-fake.log; t $? "drift went to /log, did not page"
+n=$(x git -C /var/lib/msp/dump log --oneline | wc -l); [ "$n" = 2 ]; t $? "dump repo has exactly 2 commits (got $n)"
+x sh -c 'test ! -e /var/lib/msp/dump/etc/pve/priv && test -z "$(find /var/lib/msp/dump -name "*.key")"'; t $? "no priv/ or *.key in the dump"
+x stat -c %a /var/lib/msp/dump | grep -q '^700$'; t $? "dump dir is root-only (0700)"
+d=$(x systemctl show msp-check@configdump.timer -p TimersMonotonic --value | grep -o 'OnUnitActiveUSec=[^ ;]*' | tr '\n' ' '); [ "$d" = "OnUnitActiveUSec=6h " ]; t $? "configdump interval override replaces default ($d)"
+
+# 10 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"
 [ $fail = 0 ]

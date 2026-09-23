@@ -3,4 +3,4 @@ systemd.expected_failed =
 disk.warn = 80
 disk.crit = 90
 disk.ignore =
-timers.expected = msp-check@heartbeat.timer msp-check@systemd.timer msp-check@disk.timer msp-check@timers.timer
+timers.expected = msp-check@heartbeat.timer msp-check@systemd.timer msp-check@disk.timer msp-check@timers.timer msp-check@configdump.timer

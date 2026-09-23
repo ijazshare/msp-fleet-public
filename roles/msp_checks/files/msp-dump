@@ -1,0 +1,69 @@
+#!/bin/sh
+# msp-dump: copy this node's own configuration and identity facts into a root-only local git repo
+# (/var/lib/msp/dump) and commit only when something changed. This is the rebuild kit AND the
+# config-drift detector. Never copies /etc/pve/priv, *.key, wireguard, or shadow files.
+# Prints: "unchanged" | "initialized N files" | "changed: <paths>" and exits 0; exits 3 if it cannot run.
+set -u
+D=/var/lib/msp/dump
+umask 077
+mkdir -p "$D" || exit 3
+cd "$D" || exit 3
+[ -d .git ] || { git init -q . && git config user.name msp-dump && git config user.email msp-dump@localhost; } || exit 3
+rm -rf "$D/etc" "$D/cmd"; mkdir -p "$D/etc" "$D/cmd"
+
+# files: copied only if they exist; directories copied whole
+for p in /etc/hostname /etc/hosts /etc/fstab /etc/resolv.conf /etc/network/interfaces /etc/network/interfaces.d \
+         /etc/ssh/sshd_config /etc/ssh/sshd_config.d /etc/sudoers /etc/sudoers.d /etc/cron.d /etc/modprobe.d \
+         /etc/sanoid /etc/samba/smb.conf /etc/msp /etc/nut/nut.conf /etc/nut/upsmon.conf /etc/chrony /etc/systemd/journald.conf \
+         /etc/systemd/journald.conf.d /etc/systemd/timesyncd.conf /etc/default/grub /etc/kernel/cmdline \
+         /etc/pve/storage.cfg /etc/pve/user.cfg /etc/pve/datacenter.cfg /etc/pve/jobs.cfg /etc/pve/corosync.conf \
+         /etc/pve/vzdump.cron /etc/pve/ha /etc/pve/firewall /etc/pve/sdn /etc/pve/mapping \
+         /etc/proxmox-backup/datastore.cfg /etc/proxmox-backup/verification.cfg /etc/proxmox-backup/prune.cfg \
+         /etc/proxmox-backup/sync.cfg /etc/proxmox-backup/remote.cfg /etc/proxmox-backup/node.cfg /etc/proxmox-backup/user.cfg
+do
+  [ -e "$p" ] || continue
+  mkdir -p "$D$(dirname "$p")"
+  cp -a "$p" "$D$(dirname "$p")/" 2>/dev/null
+done
+# guest configs, without the node name in the path so a node rename does not look like drift
+if [ -d /etc/pve/nodes ]; then
+  mkdir -p "$D/etc/pve/guests"
+  for c in /etc/pve/nodes/*/qemu-server/*.conf /etc/pve/nodes/*/lxc/*.conf; do [ -e "$c" ] && cp -a "$c" "$D/etc/pve/guests/"; done
+fi
+# custom systemd units only (real files under /etc/systemd/system, not symlinks)
+mkdir -p "$D/etc/systemd/system"
+find /etc/systemd/system -maxdepth 2 -type f \( -name '*.service' -o -name '*.timer' -o -name '*.conf' \) \
+  -exec sh -c 'for f; do mkdir -p "$0/etc/systemd/system/$(dirname "${f#/etc/systemd/system/}")"; cp -a "$f" "$0/etc/systemd/system/${f#/etc/systemd/system/}"; done' "$D" {} +
+# never keep these even if a directory above pulled them in
+find "$D/etc" -type f \( -name '*.key' -o -name '*.pem' -o -name 'shadow*' -o -name '*.enc' -o -name 'authkey*' -o -path '*/priv/*' -o -path '*/wireguard/*' \) -delete
+
+# command outputs: identity facts that a rebuild needs and that drift silently
+c() { n=$1; shift; "$@" > "$D/cmd/$n" 2>&1 || true; }
+c uname uname -a
+c os-release cat /etc/os-release
+c packages dpkg-query -W -f='${Package} ${Version}\n'
+c lsblk lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL,SERIAL
+c blkid blkid
+c ip-addr ip -br addr
+c ip-route ip route
+c journald-effective systemd-analyze cat-config systemd/journald.conf
+c enabled-units systemctl list-unit-files --state=enabled --no-legend --plain
+command -v pveversion >/dev/null && c pveversion pveversion -v
+command -v proxmox-boot-tool >/dev/null && c proxmox-boot-tool proxmox-boot-tool status
+command -v zpool >/dev/null && { c zpool-status zpool status; c zpool-get-local zpool get -H -s local all; c zfs-get-local zfs get -H -s local,received all; c zfs-arc-max cat /sys/module/zfs/parameters/zfs_arc_max; }
+command -v proxmox-backup-manager >/dev/null && { c pbs-versions proxmox-backup-manager versions --verbose; c pbs-datastores proxmox-backup-manager datastore list; c pbs-cert proxmox-backup-manager cert info; }
+if command -v sqlite3 >/dev/null && [ -r /var/lib/pve-cluster/config.db ]; then
+  sqlite3 /var/lib/pve-cluster/config.db .dump > "$D/cmd/pve-config.db.sql" 2>/dev/null
+else
+  echo "sqlite3 not installed or no config.db; /etc/pve files above are the readable copy" > "$D/cmd/pve-config.db.sql"
+fi
+# strip volatile lines so they do not read as drift
+sed -i '/^smartctl\|^Copyright/d' "$D"/cmd/* 2>/dev/null
+
+git add -A . >/dev/null 2>&1
+if [ -z "$(git status --porcelain)" ]; then echo "unchanged"; exit 0; fi
+n=$(git status --porcelain | wc -l)
+changed=$(git status --porcelain | awk '{print $2}' | head -n 8 | tr '\n' ' ')
+if git rev-parse HEAD >/dev/null 2>&1; then msg="changed: $changed"; else msg="initialized $n files"; fi
+git commit -q -m "$msg" || exit 3
+echo "$msg"

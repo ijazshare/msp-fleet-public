@@ -1,5 +1,7 @@
-msp_checks: [heartbeat, systemd, disk, timers]
+msp_checks: [heartbeat, systemd, disk, timers, configdump]
 msp_interval: 15min
+msp_intervals:               # per-check override of the timer interval
+  configdump: 6h
 msp_hc_base: https://hc-ping.com
 msp_consecutive: 2            # crit runs in a row before /fail pages you
 msp_healthchecks: {}          # check-name: uuid, plus _checker: uuid. Per site in group_vars.
