@@ -4,3 +4,4 @@ msp_repo_dir: ""                 # default: /home/llm/<repo name>
 msp_client_name: "{{ site }}"
 msp_never_stage: []              # per site: commands that can never be staged, whatever the label
 msp_client_rules: ""             # per site: extra prose for the client section of AGENTS.md
+msp_operator_pubkeys: []         # public keys allowed to log in as llm (your ops key). Per site or fleet-wide.

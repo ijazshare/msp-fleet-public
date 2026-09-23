@@ -16,6 +16,13 @@
   changed_when: false
   failed_when: "'sudo' in llm_groups.stdout.split() or 'adm' in llm_groups.stdout.split() or 'root' in llm_groups.stdout.split()"
 
+- name: Operator keys may log in as llm
+  ansible.posix.authorized_key:
+    user: "{{ msp_llm_user }}"
+    key: "{{ item }}"
+    comment: operator
+  loop: "{{ msp_operator_pubkeys }}"
+
 - name: Launcher
   ansible.builtin.copy:
     src: msp-tmux
