@@ -12,3 +12,5 @@ green.
 | Capture | Host | Date | Notes |
 | --- | --- | --- | --- |
 | real-taxoffice-* | tax office PVE 9.2.11, ZFS 2.4.4, LVM root on NVMe | 2026-09-23 | timers output in EDT; no msp timers installed yet |
+| real-SITE-* | N5 Air "SITE" PVE 9.2.3, ZFS root mirror on 2 NVMe, pool `fast` DEGRADED (member REMOVED, disk reports 959 MB and SMART unreadable), pool `tank` 2x20TB | 2026-09-23 | no PBS, no sanoid, no vzdump jobs on this host |
+| _captured/<host>-<date>/ | raw shapes kept for checks not written yet (ZFS degraded, SMART unknown, boot-tool with two ESPs, pve tasks JSON) | 2026-09-23 | not run by tests/run.sh |

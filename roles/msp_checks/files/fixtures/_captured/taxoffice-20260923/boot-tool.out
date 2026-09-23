@@ -1,0 +1,2 @@
+Re-executing '/usr/sbin/proxmox-boot-tool' in new private mount namespace..
+E: /etc/kernel/proxmox-boot-uuids does not exist.

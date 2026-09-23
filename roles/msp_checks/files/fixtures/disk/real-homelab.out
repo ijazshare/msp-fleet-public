@@ -1,0 +1,20 @@
+Filesystem                   1024-blocks       Used   Available Capacity Mounted on
+rpool/ROOT/pve-1               892833152    3696384   889136768       1% /
+fast                           923228032        128   923227904       1% /fast
+rpool                          889136896        128   889136768       1% /rpool
+rpool/var-lib-vz               898515968    9379200   889136768       2% /var/lib/vz
+rpool/ROOT                     889136896        128   889136768       1% /rpool/ROOT
+rpool/data                     889137024        256   889136768       1% /rpool/data
+fast/subvol-101-disk-0          67108864     406016    66702848       1% /fast/subvol-101-disk-0
+rpool/data/subvol-101-disk-0    52428800   23395712    29033088      45% /rpool/data/subvol-101-disk-0
+rpool/data/subvol-102-disk-0    52428800   12417152    40011648      24% /rpool/data/subvol-102-disk-0
+rpool/data/subvol-100-disk-0    12582912     893568    11689344       8% /rpool/data/subvol-100-disk-0
+rpool/data/subvol-104-disk-0     4194304    1422336     2771968      34% /rpool/data/subvol-104-disk-0
+rpool/data/subvol-120-disk-0     2097152     441216     1655936      22% /rpool/data/subvol-120-disk-0
+rpool/data/subvol-705-disk-0    16777216    1263744    15513472       8% /rpool/data/subvol-705-disk-0
+rpool/data/subvol-121-disk-0     8388608     848256     7540352      11% /rpool/data/subvol-121-disk-0
+tank                         16319316480  801021184 15518295296       5% /tank
+tank/takeout                 15624772096  106476800 15518295296       1% /tank/takeout
+tank/photos                  15774497536  256202240 15518295296       2% /tank/photos
+tank/itvusa                  18230744064 2712448768 15518295296      15% /tank/itvusa
+/dev/fuse                         131072         28      131044       1% /etc/pve

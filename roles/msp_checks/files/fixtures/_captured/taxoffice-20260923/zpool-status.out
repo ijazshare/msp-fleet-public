@@ -1,0 +1,14 @@
+  pool: ssd-vm
+ state: ONLINE
+  scan: scrub repaired 0B in 00:35:42 with 0 errors on Sun Sep 13 00:59:43 2026
+config:
+
+	NAME                                               STATE     READ WRITE CKSUM
+	ssd-vm                                             ONLINE       0     0     0
+	  raidz1-0                                         ONLINE       0     0     0
+	    ata-SAMSUNG_MZ7LM1T9HCJM-00003_S1YKNX0H602501  ONLINE       0     0     0
+	    ata-SAMSUNG_MZ7LM1T9HCJM-00003_S1YKNX0H602461  ONLINE       0     0     0
+	    ata-MTFDDAK1T9TCB_171516BD0654                 ONLINE       0     0     0
+	    ata-SAMSUNG_MZ7LM1T9HMJP-00005_S2TVNX0J103405  ONLINE       0     0     0
+
+errors: No known data errors

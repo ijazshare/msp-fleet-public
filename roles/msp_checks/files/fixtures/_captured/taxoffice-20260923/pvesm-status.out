@@ -1,0 +1,5 @@
+Name              Type     Status     Total (KiB)      Used (KiB) Available (KiB)        %
+local              dir     active        98497780        28203252        65244980   28.63%
+local-lvm      lvmthin     active       365760512               0       365760512    0.00%
+ssd-vm         zfspool     active      5314598244      1501234766      3813363478   28.25%
+syn-vzdump         nfs     active      9371123712      1271051264      8100072448   13.56%

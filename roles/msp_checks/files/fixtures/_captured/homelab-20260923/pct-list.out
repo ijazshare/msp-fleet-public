@@ -1,0 +1,8 @@
+VMID       Status     Lock         Name                
+100        running                 jelly               
+101        running                 immich              
+102        running                 frigate             
+104        running                 guac.asmatec.info   
+120        running                 cloudflared         
+121        running                 vaultwarden         
+705        running                 SITE-agent       

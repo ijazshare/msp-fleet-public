@@ -8,6 +8,7 @@ fail=0; total=0
 printf '%-8s %-9s %-24s %s\n' RESULT CHECK CASE GOT
 for dir in "$here"/fixtures/*/; do
   check=$(basename "$dir")
+  [ -x "$here/checks/check-$check.sh" ] || continue    # _captured/: real shapes waiting for a check
   for out in "$dir"*.out; do
     [ -e "$out" ] || continue
     case=$(basename "$out" .out); total=$((total+1))
