@@ -5,9 +5,35 @@
   roles:
     - msp_checks
     - msp_box
+    - msp_tools
 
 - name: Hypervisors
   hosts: pve_hosts
   roles:
     - msp_checks
-    - msp_host
+    - role: msp_host
+      when: msp_gate | default(true)
+
+- name: Box knows the hypervisors by their real host keys
+  hosts: box
+  tasks:
+    - name: Read each hypervisor's host key
+      ansible.builtin.slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      delegate_to: "{{ item }}"
+      register: hk
+      loop: "{{ groups['pve_hosts'] | select('match', site ~ '-.*') | list }}"
+    - name: known_hosts for llm and for the checks
+      ansible.builtin.known_hosts:
+        path: "{{ item.1 }}"
+        name: "{{ hostvars[item.0.item].ansible_host }}"
+        key: "{{ hostvars[item.0.item].ansible_host }} {{ (item.0.content | b64decode).split()[0:2] | join(' ') }}"
+      loop: "{{ hk.results | product(['/home/' ~ (msp_llm_user | default('llm')) ~ '/.ssh/known_hosts', '/var/lib/msp/known_hosts']) | list }}"
+      loop_control:
+        label: "{{ item.0.item }} -> {{ item.1 }}"
+    - name: llm owns its known_hosts
+      ansible.builtin.file:
+        path: /home/{{ msp_llm_user | default('llm') }}/.ssh/known_hosts
+        owner: "{{ msp_llm_user | default('llm') }}"
+        group: "{{ msp_llm_user | default('llm') }}"
+        mode: "0644"

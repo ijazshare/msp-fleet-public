@@ -106,7 +106,8 @@ docker cp sandbox/gate-approve.py msp-sandbox-host:/usr/local/bin/gate-approve.p
 B='su -s /bin/sh -c'
 m() { x su -s /bin/sh -c "msp host '$*'" llm 2>&1; }             # as the LLM would: msp HOST VERB
 mc() { x su -s /bin/sh -c "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i /home/llm/.ssh/msp_cron msp-agent@msp-sandbox-host $*" llm 2>&1; }
-x sh -c 'su -s /bin/sh -c "ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host status" llm' >/dev/null 2>&1
+x su -s /bin/sh -c 'grep -q msp-sandbox-host /home/llm/.ssh/known_hosts' llm; t $? "box learned the hypervisor host key from Ansible (no trust-on-first-use)"
+m "'.*/touch /tmp/PWNED/e #'" status >/dev/null 2>&1; x test ! -e /tmp/PWNED; t $? "msp wrapper: sed injection via host name is inert"
 m status | grep -q 'sandbox-host'; t $? "read verb works from the box: $(m status | head -n1)"
 m /bin/sh | grep -q 'refused: unknown verb'; t $? "shell refused: $(m /bin/sh)"
 x su -s /bin/sh -c 'ssh -o BatchMode=yes -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host' llm 2>&1 | grep -q 'refused: no verb'; t $? "bare login refused"

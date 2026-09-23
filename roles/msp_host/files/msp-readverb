@@ -29,7 +29,8 @@ case $verb in
                  ls -1t /var/spool/msp/receipts/*.txt 2>/dev/null | head -n "$n" | while read -r f; do echo "## $(basename "$f")"; cat "$f"; done | red ;;
   read-all)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }; cat "$f" ;;
   read-new)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }
-                 off=/var/spool/msp/.offset-$(basename "$f"); o=$(cat "$off" 2>/dev/null || echo 0); s=$(stat -c %s "$f")
-                 [ "$s" -gt "$o" ] && tail -c +"$((o+1))" "$f"; echo "$s" > "$off" ;;
+                 d=/var/lib/msp/agent-offsets; mkdir -p "$d"; chmod 700 "$d"; off="$d/$(basename "$f")"
+                 [ -L "$off" ] && refuse "offset file is a symlink"; o=$(cat "$off" 2>/dev/null || echo 0); s=$(stat -c %s "$f")
+                 [ "$s" -gt "$o" ] && tail -c +"$((o+1))" "$f"; t=$(mktemp -p "$d") && echo "$s" > "$t" && mv -f "$t" "$off" ;;
   *) refuse "unknown verb $verb" ;;
 esac

@@ -21,3 +21,16 @@ root@pve:~# echo "postgres://immich:<REDACTED>@192.0.2.1:5432/immich"
 postgres://immich:<REDACTED>@192.0.2.1:5432/immich
 root@pve:~# ls /ssd-vm/shares/GA-SHARE/Clients/2025/Very/Long/Path/With/Many/Segments/That/Must/Survive/Redaction
 report.pdf
+root@pve:~# pveum user token add root@pam mon --privsep 1
+┌──────────────┬──────────────────────────────────────┐
+│ key          │ value                                │
+╞══════════════╪══════════════════════════════════════╡
+│ full-tokenid │ root@pam!mon                         │
+│ value        │ <REDACTED> │
+└──────────────┴──────────────────────────────────────┘
+root@pve:~# cat /etc/pve/priv/shadow.cfg
+root@pve:<REDACTED>:
+root@pve:~# grep PrivateKey /etc/wireguard/wg0.conf
+PrivateKey = <REDACTED>
+root@pve:~# blkid | head -1
+/dev/sda1: UUID="6c5f9e2a-1234-4bcd-9e8f-0123456789ab" TYPE="zfs_member"

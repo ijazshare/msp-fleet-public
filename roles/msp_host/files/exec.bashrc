@@ -6,3 +6,4 @@ step()    { /usr/local/sbin/msp-gate step; }
 pending() { /usr/local/sbin/msp-gate pending; }
 pause()   { /usr/local/bin/msp-rec pause; }
 resume()  { /usr/local/bin/msp-rec resume; }
+printf '\033[1;31mNot auto-redacted: /etc/pve/priv, wireguard configs, anything you paste. Run  pause  first, resume after.\033[0m\n'

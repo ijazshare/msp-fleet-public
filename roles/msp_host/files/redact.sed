@@ -11,3 +11,6 @@ s/(--(password|passwd|secret|token|key|apikey)[= ])[^[:space:]]+/\1<REDACTED>/g
 s/(Authorization:[[:space:]]*(Bearer|Basic)[[:space:]]+)[^[:space:]]+/\1<REDACTED>/Ig
 s/(PBSClientKey[[:space:]]*[=:][[:space:]]*)[^[:space:]]+/\1<REDACTED>/g
 s/([A-Za-z0-9._%+-]+:\/\/[^:@\/[:space:]]+:)[^@[:space:]]+@/\1<REDACTED>@/g
+s/((^|[^A-Za-z])value[[:space:]"'│|:]*[[:space:]"']*)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/\1<REDACTED>/Ig
+s/^([A-Za-z0-9._-]+@[A-Za-z0-9._-]+:)\$[^:[:space:]]+/\1<REDACTED>/
+s/^(PrivateKey[[:space:]]*=[[:space:]]*)[^[:space:]]+/\1<REDACTED>/
