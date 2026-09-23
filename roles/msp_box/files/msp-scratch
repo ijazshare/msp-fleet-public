@@ -1,0 +1,25 @@
+#!/bin/sh
+# msp-scratch: the Scratch seat. Your whole home is overlaid with a throwaway in-memory layer: every tool sees its
+# login and the repo exactly as in Plan, and everything written here vanishes when the window closes.
+# Harness-agnostic by construction: it is the filesystem, not a per-tool flag. Needs unprivileged user namespaces
+# and overlayfs (Debian 13 default). If either is missing it REFUSES to run rather than run a non-isolated Scratch.
+#   msp-scratch          interactive Scratch shell
+#   msp-scratch --test   prove isolation: exit 0 = a file written inside is absent outside; 97 = unavailable
+set -u
+R=${XDG_RUNTIME_DIR:-/tmp/msp-$(id -u)}; mkdir -p "$R"; chmod 700 "$R"
+ov=$(mktemp -d "$R/scratch-ov.XXXXXX") || exit 1
+mkdir -p "$ov/up" "$ov/work"
+inner='mount -t overlay overlay -o lowerdir="$HOME",upperdir="$1/up",workdir="$1/work" "$HOME" || exit 97
+cd "$HOME"; [ -f "$HOME/.msp-repo" ] && cd "$(cat "$HOME/.msp-repo")"
+export MSP_SCRATCH=1
+if [ "${2:-}" = --test ]; then touch "$HOME/.msp-scratch-probe" && exit 0; fi
+exec setpriv --inh-caps=-all --ambient-caps=-all --bounding-set=-all bash -l'
+unshare -U --map-user="$(id -u)" --map-group="$(id -g)" --keep-caps -m sh -c "$inner" sh "$ov" "${1:-}"; rc=$?
+rm -rf "$ov"
+if [ "${1:-}" = --test ]; then
+  if [ -e "$HOME/.msp-scratch-probe" ]; then rm -f "$HOME/.msp-scratch-probe"; echo "SCRATCH LEAK: probe written inside is visible outside"; exit 2; fi
+  [ $rc = 0 ] && { echo "scratch isolated: probe written inside is absent outside"; exit 0; }
+  echo "scratch unavailable: user namespaces or overlayfs refused (rc=$rc)"; exit 97
+fi
+[ $rc = 97 ] && printf '\033[1;31mScratch unavailable on this kernel (user namespaces or overlayfs refused). Not running a non-isolated Scratch.\033[0m\n'
+exit $rc

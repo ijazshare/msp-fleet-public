@@ -31,12 +31,20 @@ Ansible lives in `~/.venvs/ansible`, exposed as `ansible*` in `~/.local/bin`.
     playbooks/site.yml      build or repair a site
     sandbox/                throwaway Debian 12 + systemd container; up.sh, test.sh, fake Healthchecks
 
+## Scratch
+
+`msp-scratch` overlays the llm home with an in-memory layer inside a user namespace: every tool is signed in,
+nothing written survives the window, for any harness. `msp-scratch --test` proves it; `check-scratch` re-proves it
+daily (OK isolated, WARN unavailable and refused, CRIT leak). The laptop sandbox cannot run it (Ubuntu's
+AppArmor blocks unprivileged user namespaces), so its tests assert the refusal path; the box proved the real path.
+
 ## Proving a change without touching a host
 
     sh roles/msp_checks/files/tests/run.sh                          # fixtures, runs anywhere
     sandbox/up.sh                                                   # fresh container
     ansible-playbook -i sandbox/inventory.yml playbooks/site.yml    # apply (run twice: second is changed=0)
     sandbox/test.sh                                                 # behavioural table, must end ALL PASS
+    sandbox/prove.sh                                                # all of the above in one command -> PROOF OK
 
 Rule 0: no check ships without a fixture pair in roles/msp_checks/files/fixtures/<check>/.
 You review by reading the tables, not the scripts.

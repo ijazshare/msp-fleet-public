@@ -12,9 +12,9 @@ t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 
 # 2 three timers scheduled
 n=$(x systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '$3=="active"' | wc -l)
-[ "$n" = 6 ]; t $? "6 timers active on the box (got $n)"
+[ "$n" = 7 ]; t $? "7 timers active on the box (got $n)"
 # from here on only explicit runs: the boot-time timer firings would interleave with the assertions
-alltimers() { for c in heartbeat systemd disk configdump guarantee timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
+alltimers() { for c in heartbeat systemd disk configdump guarantee scratch timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
 alltimers stop
 
 # 3 a check run writes state and a heartbeat
@@ -90,10 +90,12 @@ x git -C /home/llm/fake-origin log --oneline | grep -q 'msp: rules file'; t $? "
 x git -C /srv/fake-origin.git log --oneline | grep -q 'msp: rules file'; t $? "and pushed to the origin"
 x sh -c 'readlink /home/llm/.claude/projects/-home-llm-fake-origin/memory | grep -q /home/llm/fake-origin/memory/claude'; t $? "Claude Code project memory symlinked into the repo"
 x sh -c 'touch /home/llm/.claude/.credentials.json; cd /home/llm/fake-origin && git status --porcelain | grep -q credentials && exit 1; exit 0'; t $? "credentials file is outside the repo tree"
-x su -s /bin/sh -c 'XDG_RUNTIME_DIR=/tmp/xdg; export XDG_RUNTIME_DIR; mkdir -p $XDG_RUNTIME_DIR; msp-tmux </dev/null >/dev/null 2>&1; tmux list-windows -t msp -F "#W"' llm | tr '\n' ' ' | grep -q 'plan scratch'; t $? "msp-tmux creates plan and scratch windows"
-x su -s /bin/sh -c 'tmux send-keys -t msp:scratch "echo SCR=\$CLAUDE_CONFIG_DIR:\$MSP_SCRATCH > /tmp/scr.env" Enter; tmux send-keys -t msp:plan "echo PLAN=\$CLAUDE_CONFIG_DIR:\$MSP_SCRATCH > /tmp/plan.env" Enter' llm; sleep 1
-x grep -q 'SCR=/tmp/xdg/claude-scratch:1' /tmp/scr.env; t $? "scratch window: own CLAUDE_CONFIG_DIR on tmpfs and MSP_SCRATCH=1 ($(x cat /tmp/scr.env))"
-x grep -q '^PLAN=:$' /tmp/plan.env; t $? "plan window: default config dir, no scratch flag ($(x cat /tmp/plan.env))"
+x su -s /bin/sh -c 'XDG_RUNTIME_DIR=/tmp/xdg; export XDG_RUNTIME_DIR; mkdir -p $XDG_RUNTIME_DIR; msp-tmux </dev/null >/dev/null 2>&1; tmux list-windows -t msp -F "#W"' llm | tr '\n' ' ' | grep -q 'plan'; t $? "msp-tmux creates the plan window (scratch window closes itself here: userns blocked on this laptop)"
+x su -s /bin/sh -c 'tmux send-keys -t msp:plan "echo PLAN=\$CLAUDE_CONFIG_DIR:\$MSP_SCRATCH > /tmp/plan.env" Enter' llm; sleep 1
+x grep -q '^PLAN=:$' /tmp/plan.env; t $? "plan window: no scratch flag ($(x cat /tmp/plan.env))"
+o=$(x su -s /bin/sh -c 'XDG_RUNTIME_DIR=/tmp/xdg msp-scratch --test; echo rc=$?' llm 2>&1); echo "$o" | grep -qE 'rc=(0|97)$'; t $? "scratch --test is isolated or refused, never leaking: $(echo "$o" | tail -n 2 | tr '\n' ' ')"
+x su -s /bin/sh -c 'test ! -e ~/.msp-scratch-probe' llm; t $? "no probe file leaked into the real home"
+x systemctl start msp-check@scratch.service; x grep -qE '^rc=(0|1)$' /var/lib/msp/state/scratch.state; t $? "scratch check reports OK or WARN, never CRIT here: $(x sed -n 's/^msg=//p' /var/lib/msp/state/scratch.state | cut -c1-70)"
 x su -s /bin/sh -c 'tmux select-window -t msp:scratch; tmux display -p "#{status-style}"' llm | grep -q colour125; t $? "scratch window: magenta status bar"
 x su -s /bin/sh -c 'tmux select-window -t msp:plan; tmux display -p "#{status-style}"' llm | grep -q colour25; t $? "plan window: blue status bar"
 x su -s /bin/sh -c 'tmux show -gv set-clipboard' llm | grep -q '^on$'; t $? "clipboard forwarding on"

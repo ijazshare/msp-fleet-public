@@ -6,3 +6,5 @@ else
 fi
 # copy test: run  msp-copytest  then paste on the laptop; you should get "clipboard ok from <host>"
 msp-copytest() { printf '\033]52;c;%s\a' "$(printf 'clipboard ok from %s' "$(hostname)" | base64 | tr -d '\n')"; echo "sent to clipboard via OSC 52; now paste on the laptop"; }
+# end the whole tmux session (both windows, everything running in them); the next login starts fresh
+msp-quit() { tmux kill-session -t msp 2>/dev/null || tmux kill-server; }

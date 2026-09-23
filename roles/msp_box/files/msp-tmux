@@ -1,18 +1,13 @@
 #!/bin/sh
 # msp-tmux: attach to the llm user's tmux session, creating it with the Plan and Scratch windows if absent.
-# Plan: cwd = the client repo, tool memory lives in the repo. Scratch: same repo read-only in spirit, but
-# CLAUDE_CONFIG_DIR points at a tmpfs under $XDG_RUNTIME_DIR so nothing said there is remembered.
-# ponytail: Antigravity has no config-dir variable yet; its Scratch isolation (unshare -Urm) is v1.1.
+# Plan: cwd = the client repo, tool memory lives in the repo. Scratch: msp-scratch, the same home overlaid with a
+# throwaway in-memory layer, so every tool is signed in and nothing written there survives the window.
 set -u
 repo=$(cat "$HOME/.msp-repo" 2>/dev/null || echo "$HOME")
-scratch="${XDG_RUNTIME_DIR:-/tmp}/claude-scratch"
-mkdir -p "$scratch" && chmod 700 "$scratch"
-# refresh the sign-in copy on EVERY attach, so signing in after the session was created still carries over
-[ -f "$HOME/.claude/.credentials.json" ] && cp -f "$HOME/.claude/.credentials.json" "$scratch/"
 if ! tmux has-session -t msp 2>/dev/null; then
   # each window is an interactive login shell; start your AI tool yourself (claude / antigravity).
   tmux new-session  -d -s msp -n plan    -c "$repo" bash -l
-  tmux new-window   -t msp   -n scratch  -c "$repo" -e CLAUDE_CONFIG_DIR="$scratch" -e MSP_SCRATCH=1 bash -l
+  tmux new-window   -t msp   -n scratch  -c "$repo" /usr/local/bin/msp-scratch
   tmux set-option -t msp remain-on-exit off
   tmux select-window -t msp:plan
 fi

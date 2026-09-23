@@ -23,11 +23,17 @@
     comment: operator
   loop: "{{ msp_operator_pubkeys }}"
 
-- name: Launcher
+- name: Launcher and the Scratch seat
   ansible.builtin.copy:
-    src: msp-tmux
-    dest: /usr/local/bin/msp-tmux
+    src: "{{ item }}"
+    dest: /usr/local/bin/{{ item }}
     mode: "0755"
+  loop: [msp-tmux, msp-scratch]
+
+- name: Scratch needs unshare/setpriv (util-linux) and overlayfs
+  ansible.builtin.apt:
+    name: [util-linux, uidmap]
+    state: present
 
 - name: tmux config (Plan blue, Scratch magenta, clipboard forwarding)
   ansible.builtin.copy:
@@ -54,15 +60,17 @@
     group: "{{ msp_llm_user }}"
     mode: "0644"
 
-- name: Auto-attach tmux on login
-  ansible.builtin.copy:
-    dest: /home/{{ msp_llm_user }}/.bash_profile
+- name: Auto-attach tmux on login, as lines because tool installers append to this file too
+  ansible.builtin.lineinfile:
+    path: /home/{{ msp_llm_user }}/.bash_profile
+    line: "{{ item }}"
+    create: true
     owner: "{{ msp_llm_user }}"
     group: "{{ msp_llm_user }}"
     mode: "0644"
-    content: |
-      [ -f ~/.bashrc ] && . ~/.bashrc
-      [ -z "${TMUX:-}" ] && [ -t 0 ] && exec msp-tmux
+  loop:
+    - '[ -f ~/.bashrc ] && . ~/.bashrc'
+    - '[ -z "${TMUX:-}" ] && [ -t 0 ] && exec msp-tmux'
 
 - name: Deploy key for the client repo
   ansible.builtin.command:

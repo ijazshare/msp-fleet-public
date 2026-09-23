@@ -13,9 +13,10 @@ all:
           msp_never_stage: ["zpool destroy"]
     box:
       vars:
-        msp_checks_extra: [guarantee]
+        msp_checks_extra: [guarantee, scratch]
       hosts:
         sandbox-box:
+          msp_tools_install: false      # proven separately; the laptop's AppArmor also blocks userns here
           ansible_connection: community.docker.docker
           ansible_host: msp-sandbox
           site: sandbox

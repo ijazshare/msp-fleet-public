@@ -5,7 +5,8 @@
   roles:
     - msp_checks
     - msp_box
-    - msp_tools
+    - role: msp_tools
+      when: msp_tools_install | default(true)
 
 - name: Hypervisors
   hosts: pve_hosts
