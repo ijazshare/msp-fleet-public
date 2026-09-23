@@ -9,8 +9,10 @@ if ! tmux has-session -t msp 2>/dev/null; then
   scratch="${XDG_RUNTIME_DIR:-/tmp}/claude-scratch"
   mkdir -p "$scratch" && chmod 700 "$scratch"
   [ -f "$HOME/.claude/.credentials.json" ] && cp "$HOME/.claude/.credentials.json" "$scratch/"
-  tmux new-session -d -s msp -n plan -c "$repo"
-  tmux new-window -t msp -n scratch -c "$repo" -e "CLAUDE_CONFIG_DIR=$scratch" -e "MSP_SCRATCH=1"
+  # each window is an interactive login shell; start your AI tool yourself (claude / antigravity).
+  tmux new-session  -d -s msp -n plan    -c "$repo" bash -l
+  tmux new-window   -t msp   -n scratch  -c "$repo" -e CLAUDE_CONFIG_DIR="$scratch" -e MSP_SCRATCH=1 bash -l
+  tmux set-option -t msp remain-on-exit off
   tmux select-window -t msp:plan
 fi
 [ -t 0 ] && exec tmux attach -t msp
