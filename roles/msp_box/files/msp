@@ -1,0 +1,8 @@
+#!/bin/sh
+# msp HOST VERB [ARGS]: the LLM's only path to a host. Reads are free; "stage LABEL -- cmd" goes to the gate.
+#   msp lab qm-list            msp lab journal pve-cluster 50            msp lab stage SAFE -- qm start 999
+[ $# -ge 2 ] || { echo "usage: msp HOST VERB [ARGS]   hosts: $(cut -d= -f1 /etc/msp/hosts.conf | tr '\n' ' ')"; exit 2; }
+h=$1; shift
+addr=$(sed -n "s/^$h=//p" /etc/msp/hosts.conf)
+[ -n "$addr" ] || { echo "unknown host $h"; exit 2; }
+exec ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 -i "$HOME/.ssh/msp_interactive" "msp-agent@$addr" "$@"

@@ -1,0 +1,37 @@
+#!/bin/sh
+# msp-gate step|pending  (root, run inside the recorded Exec shell)
+# step: read the staged command ONCE, delete it, show it byte for byte, demand a fresh 4-char code,
+# run it as an argument list (no shell), print RESULT on a fixed line, journal + receipt.
+set -u
+spool=/var/spool/msp/staged; rec=/var/spool/msp/receipts
+case ${1:-} in
+  pending) if [ -f "$spool" ]; then echo "pending: $(sed -n 1p "$spool") staged $(sed -n 2p "$spool")"; else echo "nothing pending"; fi; exit 0;;
+  step) ;;
+  *) echo "usage: msp-gate step|pending"; exit 1;;
+esac
+[ -f "$spool" ] || { echo "nothing staged"; exit 1; }
+content=$(cat "$spool"); rm -f "$spool"            # read once; nothing can be approved twice
+label=$(printf '%s\n' "$content" | sed -n 1p); when=$(printf '%s\n' "$content" | sed -n 2p); cmd=$(printf '%s\n' "$content" | sed -n 3p)
+age=$(( $(date +%s) - $(date -d "$when" +%s 2>/dev/null || echo 0) ))
+[ "$age" -gt 1800 ] && { echo "EXPIRED: staged $((age/60)) min ago, discarded"; logger -t msp-gate "expired label=$label"; exit 1; }
+case $cmd in *[!A-Za-z0-9\ ._:@/=,+-]*) echo "REFUSED: staged text contains characters outside the allowed set, discarded"; exit 1;; esac
+printf '\n===== STAGED [%s] %s =====\n' "$label" "$when"
+printf '>>>%s<<<\n' "$cmd"
+printf '===== end of command (%s bytes) =====\n' "$(printf '%s' "$cmd" | wc -c)"
+code=$(tr -dc a-z0-9 < /dev/urandom | head -c 4)
+printf 'type %s to run, anything else aborts: ' "$code"; read -r ans
+[ "$ans" = "$code" ] || { echo "ABORTED"; logger -t msp-gate "aborted label=$label"; exit 1; }
+if [ "$label" = DESTRUCTIVE ]; then
+  printf 'DESTRUCTIVE: type the target ID exactly as it appears in the command: '; read -r tid
+  case " $cmd " in *" $tid "*) ;; *) echo "ABORTED: target mismatch"; logger -t msp-gate "aborted target mismatch label=$label"; exit 1;; esac
+fi
+approver=${SUDO_USER:-$(logname 2>/dev/null || echo root)}
+set -f; set -- $cmd; set +f
+"$@"; rc=$?
+printf '===== RESULT rc=%s =====\n' "$rc"
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+logger -t msp-gate "approved label=$label rc=$rc by=$approver cmd=$cmd"
+mkdir -p "$rec"; r="$rec/$(date -u +%Y%m%dT%H%M%SZ)-$$.txt"
+printf 'when: %s\nlabel: %s\ncommand: %s\nrc: %s\napprover: %s\nrecording: %s\n' "$now" "$label" "$cmd" "$rc" "$approver" "$(cat /run/msp/recording 2>/dev/null || echo none)" > "$r"
+chmod 640 "$r"; chgrp msp-agent "$r" 2>/dev/null
+exit "$rc"

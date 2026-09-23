@@ -1,0 +1,117 @@
+- name: Packages (sudo is not on a stock PVE)
+  ansible.builtin.apt:
+    name: [sudo, bsdutils, util-linux, openssh-server]
+    state: present
+
+- name: Agent account (no password, no home key material)
+  ansible.builtin.user:
+    name: "{{ msp_agent_user }}"
+    shell: /bin/sh
+    create_home: true
+    password: "!"
+    system: true
+
+- name: Directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /usr/local/sbin
+    - /usr/local/share/msp
+    - /etc/msp
+    - /etc/ssh/msp_keys
+
+- name: Programs
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0755"
+  loop:
+    - {src: msp-dispatch, dest: /usr/local/bin/msp-dispatch}
+    - {src: msp-stage, dest: /usr/local/bin/msp-stage}
+    - {src: msp-redact, dest: /usr/local/bin/msp-redact}
+    - {src: msp-rec, dest: /usr/local/bin/msp-rec}
+    - {src: msp-readverb, dest: /usr/local/sbin/msp-readverb}
+    - {src: msp-gate, dest: /usr/local/sbin/msp-gate}
+    - {src: msp-shell, dest: /usr/local/sbin/msp-shell}
+
+- name: Shared files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - {src: exec.bashrc, dest: /usr/local/share/msp/exec.bashrc}
+    - {src: redact.sed, dest: /etc/msp/redact.sed}
+
+- name: Redaction fixture test on the host
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /usr/local/share/msp/
+    mode: preserve
+  loop: [redact-test.sh, fixtures]
+
+- name: Redaction rules must pass their fixture before anything is recorded
+  ansible.builtin.command: sh /usr/local/share/msp/redact-test.sh
+  changed_when: false
+  environment:
+    MSP_RULES: /etc/msp/redact.sed
+
+- name: Never and deny lists
+  ansible.builtin.copy:
+    dest: /etc/msp/{{ item.name }}
+    content: "{{ item.list | join('\n') }}\n"
+    mode: "0644"
+  loop:
+    - {name: never.list, list: "{{ msp_never_stage }}"}
+    - {name: deny.list, list: "{{ msp_deny_stage }}"}
+
+- name: Spool and recording directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ msp_agent_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /var/spool/msp, mode: "0770"}
+    - {path: /var/spool/msp/receipts, mode: "0750"}
+    - {path: /var/log/msp/rec, mode: "0750"}
+    - {path: /run/msp, mode: "0755"}
+
+- name: Agent keys file (root-owned, outside the agent's home)
+  ansible.builtin.template:
+    src: msp-agent.keys.j2
+    dest: /etc/ssh/msp_keys/{{ msp_agent_user }}
+    owner: root
+    group: root
+    mode: "0644"
+  when: msp_box_host != ""
+
+- name: sshd Match block
+  ansible.builtin.template:
+    src: 60-msp.conf.j2
+    dest: /etc/ssh/sshd_config.d/60-msp.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: sshd -t -f %s
+  notify: reload-sshd
+
+- name: sudoers line
+  ansible.builtin.template:
+    src: sudoers-msp.j2
+    dest: /etc/sudoers.d/msp
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: sshd enabled
+  ansible.builtin.systemd:
+    name: ssh
+    enabled: true
+    state: started

@@ -1,0 +1,2 @@
+msp_llm_user: llm
+msp_tools_update: false          # true: re-run the installers to pull the current versions

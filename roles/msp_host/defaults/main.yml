@@ -1,0 +1,12 @@
+msp_agent_user: msp-agent
+msp_box_host: ""                 # inventory name of this site's box (its llm keys are registered here)
+msp_never_stage: []              # from group_vars/<site>.yml: never staged, whatever the label
+msp_deny_stage:                  # need label DESTRUCTIVE
+  - destroy
+  - "rm -rf"
+  - wipefs
+  - mkfs
+  - "dd "
+  - purge
+  - rollback
+  - "zfs receive -F"

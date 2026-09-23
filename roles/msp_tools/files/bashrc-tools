@@ -1,0 +1,5 @@
+# msp: AI tools for the llm user. Installed under ~/.local/bin by their official installers; no service runs.
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH";; esac
+# Claude Code: only the conversation leaves this box. No version pings, no usage or crash telemetry.
+export DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1 DISABLE_AUTOUPDATER=1
+# OpenRouter key for opencode: set once with `opencode auth login` (stored in ~/.local/share/opencode), never here.

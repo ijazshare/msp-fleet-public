@@ -71,6 +71,38 @@
   become: true
   become_user: "{{ msp_llm_user }}"
 
+- name: Agent keys to the hypervisors (interactive; and cron, which the dispatcher never lets stage)
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C "{{ msp_llm_user }}@{{ inventory_hostname }} {{ item }}" -f /home/{{ msp_llm_user }}/.ssh/msp_{{ item }}
+    creates: /home/{{ msp_llm_user }}/.ssh/msp_{{ item }}
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  loop: [interactive, cron]
+
+- name: Read the agent public keys
+  ansible.builtin.slurp:
+    src: /home/{{ msp_llm_user }}/.ssh/msp_{{ item }}.pub
+  register: agent_pub
+  loop: [interactive, cron]
+
+- name: Publish them as facts for the hypervisor play
+  ansible.builtin.set_fact:
+    msp_agent_pubkeys:
+      interactive: "{{ (agent_pub.results[0].content | b64decode).split()[0:2] | join(' ') }}"
+      cron: "{{ (agent_pub.results[1].content | b64decode).split()[0:2] | join(' ') }}"
+
+- name: Hypervisor address book for the msp wrapper
+  ansible.builtin.template:
+    src: hosts.conf.j2
+    dest: /etc/msp/hosts.conf
+    mode: "0644"
+
+- name: msp wrapper
+  ansible.builtin.copy:
+    src: msp
+    dest: /usr/local/bin/msp
+    mode: "0755"
+
 - name: GitHub host key known
   ansible.builtin.known_hosts:
     path: /home/{{ msp_llm_user }}/.ssh/known_hosts

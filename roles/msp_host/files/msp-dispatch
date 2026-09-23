@@ -1,0 +1,24 @@
+#!/bin/sh
+# msp-dispatch: the ONLY program the msp-agent account can run (sshd ForceCommand). No shell, ever.
+# Role comes from which key authenticated (sshd ExposeAuthInfo): the keys file tags each key role=interactive|cron.
+set -u
+refuse() { echo "refused: $1"; exit 2; }
+auth=${SSH_USER_AUTH:-}
+[ -n "$auth" ] && [ -r "$auth" ] || refuse "no auth info"
+pub=$(sed -n 's/^publickey //p' "$auth" | head -n 1 | cut -d' ' -f1-2)
+[ -n "$pub" ] || refuse "no public key in auth info"
+role=$(grep -F -- "$pub" /etc/ssh/msp_keys/msp-agent | sed -n 's/.*role=\([a-z]*\).*/\1/p' | head -n 1)
+[ -n "$role" ] || refuse "key has no role"
+cmd=${SSH_ORIGINAL_COMMAND:-}
+[ -n "$cmd" ] || refuse "no verb given; there is no shell here"
+case $cmd in *[!A-Za-z0-9\ ._:@/=,+-]*) refuse "characters outside [A-Za-z0-9 ._:@/=,+-]";; esac
+set -f; set -- $cmd; set +f
+verb=$1; shift
+case $verb in
+  status|qm-list|pct-list|zpool-status|zfs-list|pvesm-status|pveversion|df|read-state|read-receipts|read-new|read-all|journal|qm-config|pct-config|qm-pending)
+    exec sudo -n /usr/local/sbin/msp-readverb "$verb" "$@" ;;
+  stage)
+    [ "$role" = interactive ] || refuse "cron key cannot stage"
+    exec /usr/local/bin/msp-stage "$@" ;;
+  *) refuse "unknown verb: $verb" ;;
+esac

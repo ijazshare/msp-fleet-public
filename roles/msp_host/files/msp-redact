@@ -1,0 +1,8 @@
+#!/bin/sh
+# msp-redact: stdin -> stdout. Drops lines while /run/msp/paused exists (writes one marker), then applies
+# /etc/msp/redact.sed unbuffered. The filter is a backstop; the pause is the control.
+paused=0
+while IFS= read -r line; do
+  if [ -f /run/msp/paused ]; then [ $paused = 0 ] && { echo "--- PAUSED by operator ---"; paused=1; }; continue; fi
+  paused=0; printf '%s\n' "$line"
+done | sed -u -E -f /etc/msp/redact.sed

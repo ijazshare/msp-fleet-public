@@ -1,0 +1,35 @@
+#!/bin/sh
+# msp-readverb VERB [ARGS]: the one root helper the msp-agent account may run via sudo. Validates every
+# argument, runs exactly one fixed command, passes output through the redaction rules.
+set -u
+refuse() { echo "refused: $1"; exit 2; }
+verb=${1:-}; shift || true
+vmid() { case ${1:-} in ''|*[!0-9]*) refuse "vmid must be digits";; esac; }
+have() { command -v "$1" >/dev/null 2>&1 || { echo "not available on this host: $1"; exit 0; }; }
+red() { sed -u -E -f /etc/msp/redact.sed; }
+case $verb in
+  status)        { hostname; uptime; } | red ;;
+  qm-list)       have qm;  qm list | red ;;
+  pct-list)      have pct; pct list | red ;;
+  qm-config)     vmid "${1:-}"; have qm;  qm config "$1" | red ;;
+  qm-pending)    vmid "${1:-}"; have qm;  qm pending "$1" | red ;;
+  pct-config)    vmid "${1:-}"; have pct; pct config "$1" | red ;;
+  zpool-status)  have zpool; zpool status | red ;;
+  zfs-list)      have zfs; zfs list -o name,used,avail,refer,mountpoint,mounted | red ;;
+  pvesm-status)  have pvesm; pvesm status | red ;;
+  pveversion)    have pveversion; pveversion -v | red ;;
+  df)            df -P -l -x tmpfs -x devtmpfs -x overlay | red ;;
+  journal)       unit=${1:-}; n=${2:-100}
+                 case $unit in ''|*[!A-Za-z0-9@._-]*) refuse "unit name";; esac
+                 case $n in ''|*[!0-9]*) refuse "line count";; esac; [ "$n" -le 500 ] || n=500
+                 journalctl -u "$unit" -n "$n" --no-pager | red ;;
+  read-state)    n=${1:-}; case $n in *[!A-Za-z0-9_-]*) refuse "state name";; esac
+                 if [ -n "$n" ]; then cat "/var/lib/msp/state/$n.state" 2>/dev/null || echo "no such state"; else for f in /var/lib/msp/state/*.state; do [ -e "$f" ] && { echo "## $(basename "$f" .state)"; cat "$f"; }; done; fi ;;
+  read-receipts) n=${1:-5}; case $n in *[!0-9]*) refuse "count";; esac
+                 ls -1t /var/spool/msp/receipts/*.txt 2>/dev/null | head -n "$n" | while read -r f; do echo "## $(basename "$f")"; cat "$f"; done | red ;;
+  read-all)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }; cat "$f" ;;
+  read-new)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }
+                 off=/var/spool/msp/.offset-$(basename "$f"); o=$(cat "$off" 2>/dev/null || echo 0); s=$(stat -c %s "$f")
+                 [ "$s" -gt "$o" ] && tail -c +"$((o+1))" "$f"; echo "$s" > "$off" ;;
+  *) refuse "unknown verb $verb" ;;
+esac

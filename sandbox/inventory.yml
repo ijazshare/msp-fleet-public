@@ -1,6 +1,19 @@
 all:
   children:
+    pve_hosts:
+      hosts:
+        sandbox-host:
+          ansible_connection: community.docker.docker
+          ansible_host: msp-sandbox-host
+          site: sandbox
+          msp_lab: true
+          msp_hc_base: http://127.0.0.1:8099
+          msp_healthchecks: {}
+          msp_box_host: sandbox-box
+          msp_never_stage: ["zpool destroy"]
     box:
+      vars:
+        msp_checks_extra: [guarantee]
       hosts:
         sandbox-box:
           ansible_connection: community.docker.docker
@@ -9,5 +22,6 @@ all:
           msp_repo_url: /srv/fake-origin.git
           msp_baseline: {systemd.expected_failed: systemd-modules-load.service}   # container artifact
           msp_never_stage: ["zpool destroy"]
+          msp_box_host: sandbox-box
           msp_hc_base: http://127.0.0.1:8099
           msp_healthchecks: {heartbeat: hc-heartbeat, systemd: hc-systemd, disk: hc-disk, timers: hc-timers, _checker: hc-checker, configdump: hc-configdump}

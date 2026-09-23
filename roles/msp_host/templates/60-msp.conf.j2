@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# The msp-agent account gets exactly one program. Keys live in a root-owned file, not in its home.
+Match User {{ msp_agent_user }}
+    ForceCommand /usr/local/bin/msp-dispatch
+    AuthorizedKeysFile /etc/ssh/msp_keys/%u
+    ExposeAuthInfo yes
+    PermitTTY no
+    AllowTcpForwarding no
+    AllowAgentForwarding no
+    AllowStreamLocalForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no

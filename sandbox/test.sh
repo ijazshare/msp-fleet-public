@@ -12,9 +12,9 @@ t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 
 # 2 three timers scheduled
 n=$(x systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '$3=="active"' | wc -l)
-[ "$n" = 5 ]; t $? "5 timers active (got $n)"
+[ "$n" = 6 ]; t $? "6 timers active on the box (got $n)"
 # from here on only explicit runs: the boot-time timer firings would interleave with the assertions
-alltimers() { for c in heartbeat systemd disk configdump timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
+alltimers() { for c in heartbeat systemd disk configdump guarantee timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
 alltimers stop
 
 # 3 a check run writes state and a heartbeat
@@ -99,6 +99,58 @@ x su -s /bin/sh -c 'tmux select-window -t msp:plan; tmux display -p "#{status-st
 x su -s /bin/sh -c 'tmux show -gv set-clipboard' llm | grep -q '^on$'; t $? "clipboard forwarding on"
 x su -s /bin/sh -c 'MSP_SCRATCH=1 bash -ic "echo \$PS1"' llm 2>/dev/null | grep -q SCRATCH; t $? "scratch prompt shows [SCRATCH]"
 x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
+
+# 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.
+h() { docker exec msp-sandbox-host "$@"; }
+docker cp sandbox/gate-approve.py msp-sandbox-host:/usr/local/bin/gate-approve.py >/dev/null
+B='su -s /bin/sh -c'
+m() { x su -s /bin/sh -c "msp host '$*'" llm 2>&1; }             # as the LLM would: msp HOST VERB
+mc() { x su -s /bin/sh -c "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i /home/llm/.ssh/msp_cron msp-agent@msp-sandbox-host $*" llm 2>&1; }
+x sh -c 'su -s /bin/sh -c "ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host status" llm' >/dev/null 2>&1
+m status | grep -q 'sandbox-host'; t $? "read verb works from the box: $(m status | head -n1)"
+m /bin/sh | grep -q 'refused: unknown verb'; t $? "shell refused: $(m /bin/sh)"
+x su -s /bin/sh -c 'ssh -o BatchMode=yes -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host' llm 2>&1 | grep -q 'refused: no verb'; t $? "bare login refused"
+x su -s /bin/sh -c 'ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -i /home/llm/.ssh/msp_interactive -R 9999:localhost:22 -N msp-agent@msp-sandbox-host' llm 2>&1 | grep -qi 'refused\|prohibited\|closed\|failed'; t $? "port forwarding refused"
+m 'status; id' | grep -q 'refused: characters'; t $? "shell metacharacters refused"
+m 'journal ssh 5' | grep -qv refused; t $? "journal verb with unit and cap works"
+m 'qm-config abc' | grep -q 'refused: vmid'; t $? "read helper validates arguments"
+mc 'stage SAFE -- /bin/echo probe' | grep -q 'refused: cron key cannot stage'; t $? "cron key cannot stage"
+m 'stage SAFE -- /bin/echo probe' | grep -q 'refused: no recorded shell'; t $? "no stage without a recorded shell"
+h sh -c 'mkdir -p /run/msp; echo TEST > /run/msp/recording'          # pretend the Exec seat is open
+m 'stage DESTRUCTIVE -- zpool destroy tank' | grep -q 'refused: never-list'; t $? "never-list refused even with DESTRUCTIVE label"
+m 'stage SAFE -- rm -rf /tmp/x' | grep -q 'refused: deny-list'; t $? "deny-list refused without DESTRUCTIVE label"
+m 'stage BOGUS -- /bin/echo x' | grep -q 'refused: label'; t $? "bad label refused"
+o=$(m 'stage SAFE -- /bin/echo gate-ok'); [ "$o" = "staged: SAFE" ]; t $? "stage returns only 'staged: SAFE' (got: $o)"
+m 'stage SAFE -- /bin/echo second' | grep -q 'refused: a command is already pending'; t $? "second stage while pending refused"
+h test -f /var/spool/msp/staged; t $? "spool holds exactly one staged file"
+o=$(h gate-approve.py wrong); echo "$o" | grep -q ABORTED; t $? "wrong code aborts"
+h test ! -f /var/spool/msp/staged; t $? "aborted stage is consumed (spool empty)"
+m 'stage SAFE -- /bin/echo gate-ok' >/dev/null
+o=$(h gate-approve.py); echo "$o" | grep -q '>>>/bin/echo gate-ok<<<' && echo "$o" | grep -q '^gate-ok' && echo "$o" | grep -q 'RESULT rc=0'; t $? "correct code: byte-exact display, runs as argv, RESULT line"
+h test ! -f /var/spool/msp/staged; t $? "spool empty after approval"
+h journalctl -t msp-gate --no-pager | grep -q 'approved label=SAFE rc=0'; t $? "approval written to the host journal"
+m 'read-receipts 1' | grep -q 'command: /bin/echo gate-ok'; t $? "receipt readable by the agent with the literal command"
+m 'stage DESTRUCTIVE -- /bin/echo 100' >/dev/null
+o=$(h gate-approve.py 999); echo "$o" | grep -q 'target mismatch'; t $? "DESTRUCTIVE: wrong target id aborts"
+m 'stage DESTRUCTIVE -- /bin/echo 100' >/dev/null
+o=$(h gate-approve.py 100); echo "$o" | grep -q 'RESULT rc=0'; t $? "DESTRUCTIVE: typed target id runs"
+h sh -c 'printf "SAFE\n2000-01-01T00:00:00Z\n/bin/echo old\n" > /var/spool/msp/staged'
+o=$(h gate-approve.py); echo "$o" | grep -q EXPIRED; t $? "expired stage discarded"
+h sh -c 'echo "SAFE" > /var/spool/msp/staged; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /var/spool/msp/staged; printf "/bin/echo \$(id)\n" >> /var/spool/msp/staged'
+o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: staged text'; t $? "tampered spool with shell characters refused at the gate"
+# recorder + redaction
+h sh -c 'rm -f /run/msp/recording; (echo "echo password=hunter2"; sleep 1; echo exit) | msp-shell >/dev/null 2>&1; sleep 1'
+h sh -c 'grep -q "password=<REDACTED>" /var/log/msp/rec/*.clean && ! grep -q hunter2 /var/log/msp/rec/*.clean'; t $? "recording: clean copy redacted, secret absent"
+h sh -c 'grep -q hunter2 /var/log/msp/rec/raw/*.raw'; t $? "recording: raw copy verbatim, root-only ($(h stat -c %a /var/log/msp/rec/raw))"
+h test ! -f /run/msp/recording; t $? "recording ended cleanly"
+m read-all | grep -q 'password=<REDACTED>'; t $? "agent reads the redacted recording via read-all"
+# guarantee self-test from the box
+x systemctl start msp-check@guarantee.service
+x grep -q '^rc=0' /var/lib/msp/state/guarantee.state; t $? "guarantee self-test: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state)"
+h sh -c 'sed -i "s/^restrict //" /etc/ssh/msp_keys/msp-agent; systemctl reload ssh'   # weaken nothing that matters yet; the ForceCommand still holds
+h sh -c 'rm /etc/ssh/sshd_config.d/60-msp.conf; systemctl reload ssh'              # now remove the boundary
+x systemctl start msp-check@guarantee.service
+x grep -q '^rc=2' /var/lib/msp/state/guarantee.state; t $? "guarantee self-test goes CRIT when the sshd block is removed: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state | cut -c1-60)"
 
 # 10 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"

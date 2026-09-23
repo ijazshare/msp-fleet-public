@@ -1,0 +1,4 @@
+# {{ ansible_managed }}. short-name=address of every hypervisor at this site, for `msp HOST VERB`.
+{% for h in groups['pve_hosts'] if hostvars[h].site == site %}
+{{ h | regex_replace('^' ~ site ~ '-', '') }}={{ hostvars[h].ansible_host }}
+{% endfor %}

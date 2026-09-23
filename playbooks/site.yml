@@ -5,3 +5,9 @@
   roles:
     - msp_checks
     - msp_box
+
+- name: Hypervisors
+  hosts: pve_hosts
+  roles:
+    - msp_checks
+    - msp_host

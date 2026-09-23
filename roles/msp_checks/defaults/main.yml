@@ -1,4 +1,6 @@
-msp_checks: [heartbeat, systemd, disk, configdump, timers]   # timers last: its first run must see the others started
+msp_checks_base: [heartbeat, systemd, disk, configdump]
+msp_checks_extra: []          # per group: box adds guarantee
+msp_checks: "{{ msp_checks_base + msp_checks_extra + ['timers'] }}"   # timers last: its first run must see the others started
 msp_interval: 15min
 msp_intervals:               # per-check override of the timer interval
   configdump: 6h

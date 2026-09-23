@@ -1,0 +1,16 @@
+#!/bin/sh
+# msp-shell: the Exec seat. A root shell recorded verbatim (root-only) with a redacted copy the agent may read.
+# Inside: step (approve the staged command), pending, pause / resume (redacted copy stops advancing).
+set -u
+d=/var/log/msp/rec; mkdir -p "$d/raw"; chmod 700 "$d/raw"; chmod 750 "$d"; chgrp msp-agent "$d" 2>/dev/null
+ts=$(date -u +%Y%m%dT%H%M%SZ); raw="$d/raw/$ts.raw"; clean="$d/$ts.clean"
+: > "$clean"; chmod 640 "$clean"; chgrp msp-agent "$clean" 2>/dev/null
+mkdir -p /run/msp; rm -f /run/msp/paused; echo "$ts" > /run/msp/recording
+tail -n +1 -F "$raw" 2>/dev/null | /usr/local/bin/msp-redact > "$clean" &
+echo $! > /run/msp/redact.pid
+logger -t msp-shell "recording $ts started by ${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
+printf '\033[1;31m[EXEC] recording %s. step = approve staged command, pending, pause, resume. exit ends the recording.\033[0m\n' "$ts"
+script -q -f -c "bash --rcfile /usr/local/share/msp/exec.bashrc" "$raw"
+sleep 1; kill "$(cat /run/msp/redact.pid)" 2>/dev/null; pkill -f "tail -n \+1 -F $raw" 2>/dev/null
+rm -f /run/msp/recording /run/msp/paused /run/msp/redact.pid
+logger -t msp-shell "recording $ts ended"

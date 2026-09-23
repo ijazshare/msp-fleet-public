@@ -1,0 +1,76 @@
+# Three terminal agents for the llm user, each from its official installer, no root, no services.
+- name: Installer prerequisites
+  ansible.builtin.apt:
+    name: [curl, ca-certificates, unzip]
+    state: present
+
+- name: ~/.local/bin exists (Debian's .profile puts it on PATH only if it exists at login)
+  ansible.builtin.file:
+    path: /home/{{ msp_llm_user }}/.local/bin
+    state: directory
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0755"
+
+- name: Claude Code
+  ansible.builtin.shell: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: "{{ '' if msp_tools_update else '/home/' + msp_llm_user + '/.local/bin/claude' }}"
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  environment: {HOME: "/home/{{ msp_llm_user }}"}
+
+- name: Antigravity CLI (agy)
+  ansible.builtin.shell: curl -fsSL https://antigravity.google/cli/install.sh | bash
+  args:
+    creates: "{{ '' if msp_tools_update else '/home/' + msp_llm_user + '/.local/bin/agy' }}"
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  environment: {HOME: "/home/{{ msp_llm_user }}"}
+
+- name: OpenCode (OpenRouter and any other provider)
+  ansible.builtin.shell: curl -fsSL https://opencode.ai/install | bash
+  args:
+    creates: "{{ '' if msp_tools_update else '/home/' + msp_llm_user + '/.opencode/bin/opencode' }}"
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  environment: {HOME: "/home/{{ msp_llm_user }}"}
+
+- name: opencode on the same path as the others
+  ansible.builtin.file:
+    path: /home/{{ msp_llm_user }}/.local/bin/opencode
+    src: /home/{{ msp_llm_user }}/.opencode/bin/opencode
+    state: link
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+
+- name: Shell environment for the tools
+  ansible.builtin.copy:
+    src: bashrc-tools
+    dest: /home/{{ msp_llm_user }}/.bashrc-tools
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+
+- name: bashrc sources it
+  ansible.builtin.lineinfile:
+    path: /home/{{ msp_llm_user }}/.bashrc
+    line: '[ -f ~/.bashrc-tools ] && . ~/.bashrc-tools'
+    create: true
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+
+- name: Versions
+  ansible.builtin.shell: |
+    set -e; export PATH="$HOME/.local/bin:$PATH"
+    printf 'claude %s\nagy %s\nopencode %s\n' "$(claude --version 2>/dev/null | head -n1)" "$(agy --version 2>/dev/null | head -n1)" "$(opencode --version 2>/dev/null | head -n1)"
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  environment: {HOME: "/home/{{ msp_llm_user }}"}
+  register: tool_versions
+  changed_when: false
+
+- name: Installed tools
+  ansible.builtin.debug:
+    var: tool_versions.stdout_lines

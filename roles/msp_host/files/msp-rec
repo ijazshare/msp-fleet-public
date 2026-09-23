@@ -1,0 +1,8 @@
+#!/bin/sh
+# msp-rec pause|resume|status: control the redacted copy of the current recording.
+case ${1:-} in
+  pause)  [ -f /run/msp/recording ] || { echo "no recording"; exit 1; }; touch /run/msp/paused; echo "PAUSED: nothing you type or see now reaches the agent's copy"; logger -t msp-rec paused;;
+  resume) rm -f /run/msp/paused; echo "RESUMED"; logger -t msp-rec resumed;;
+  status) if [ -f /run/msp/recording ]; then printf 'recording %s ' "$(cat /run/msp/recording)"; [ -f /run/msp/paused ] && echo "(PAUSED)" || echo "(live)"; else echo "no recording"; fi;;
+  *) echo "usage: msp-rec pause|resume|status"; exit 1;;
+esac

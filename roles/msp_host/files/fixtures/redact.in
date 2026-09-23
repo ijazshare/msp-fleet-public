@@ -1,0 +1,26 @@
+root@pve:~# cat /etc/pve/storage.cfg
+pbs: pbs1
+	datastore main
+	server 192.0.2.1
+	fingerprint 3a:0f:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee
+	username backup@pbs
+	password Sup3rSecret!
+root@pve:~# pvesh get /access/users --output-format json | head -c 200
+[{"userid":"root@pam","tokens":[{"tokenid":"mon","privsep":1}]}]
+root@pve:~# curl -H 'Authorization: PVEAPIToken=root@pam!mon=6f1e0c8a-1b2c-4d3e-9f80-abcdef012345' https://localhost:8006/api2/json/nodes
+root@pve:~# proxmox-backup-client login --repository backup@pbs@192.0.2.1:main --password hunter2
+root@pve:~# sha256sum /var/lib/vz/template/iso/debian-13.iso
+a3f2b8c1d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d  /var/lib/vz/template/iso/debian-13.iso
+root@pve:~# qm config 102 | grep -E 'keyboard|name|net0'
+keyboard: en-us
+name: SITE-dc1
+net0: virtio=BC:24:11:17:CE:50,bridge=vmbr0
+root@pve:~# cat /root/.ssh/id_ed25519
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACBhIGZha2Uga2V5IGZvciB0aGUgcmVkYWN0aW9uIHRlc3QgZmlsZQAAAJg
+-----END OPENSSH PRIVATE KEY-----
+root@pve:~# echo "postgres://immich:pgP4ss@192.0.2.1:5432/immich"
+postgres://immich:pgP4ss@192.0.2.1:5432/immich
+root@pve:~# ls /ssd-vm/shares/GA-SHARE/Clients/2025/Very/Long/Path/With/Many/Segments/That/Must/Survive/Redaction
+report.pdf

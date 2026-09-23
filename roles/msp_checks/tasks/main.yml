@@ -73,6 +73,14 @@
     state: started
   loop: "{{ msp_checks }}"
 
+- name: Known-hosts file for checks that SSH (guarantee)
+  ansible.builtin.file:
+    path: /var/lib/msp/known_hosts
+    state: touch
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+
 - name: Fixture self-test on the node
   ansible.builtin.command: sh /usr/local/lib/msp/tests/run.sh
   changed_when: false

@@ -1,0 +1,6 @@
+# AI terminal tools for the llm user on the site box (also part of site.yml once merged).
+#   bin/ap playbooks/tools.yml -l host.invalid
+- name: Box tools
+  hosts: box
+  roles:
+    - msp_tools
