@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Expected state of THIS node. Checks alert on divergence from this file, not on absolute health.
+# key = value. Lists are space separated. Edit in group_vars/<site>.yml (msp_baseline), never here.
+{% for k, v in msp_baseline_effective.items() %}
+{{ k }} = {{ v }}
+{% endfor %}

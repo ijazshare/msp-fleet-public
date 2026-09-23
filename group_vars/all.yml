@@ -1,0 +1,4 @@
+# Fleet-wide defaults. Override per site in group_vars/<site>.yml, never here.
+agent_user: pve-agent        # unprivileged account on the PVE host that the agent SSHes in as
+agent_group: qcap-ro
+ct_llm_user: llm             # login user on the agent CT that runs Claude Code / AGY / whatever

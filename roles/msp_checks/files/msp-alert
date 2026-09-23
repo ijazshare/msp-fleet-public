@@ -1,0 +1,7 @@
+#!/bin/sh
+# msp-alert UNIT: a check unit itself failed (exit 3+, signal, timeout). Not a finding: the checker broke.
+. /etc/msp/msp.conf
+logger -p daemon.crit -t msp-alert "checker broke: $1"
+uuid=$(sed -n 's/^_checker=//p' /etc/msp/healthchecks.conf 2>/dev/null)
+[ -n "$uuid" ] && curl -fsS -m 10 -o /dev/null --data-raw "checker broke: $1" "$MSP_HC_BASE/$uuid/fail"
+exit 0

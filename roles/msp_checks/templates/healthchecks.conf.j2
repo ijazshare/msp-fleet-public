@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# check-name=Healthchecks.io UUID. _checker is pinged when a check unit itself breaks.
+{% for k, v in msp_healthchecks.items() %}
+{{ k }}={{ v }}
+{% endfor %}

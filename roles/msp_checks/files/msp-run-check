@@ -1,0 +1,44 @@
+#!/bin/sh
+# msp-run-check NAME: lock, run check-NAME.sh, write state atomically, log changes, heartbeat.
+# Exit code is the check's (0 ok, 1 warn, 2 crit); the unit treats those as success. 3+ = the checker broke.
+set -u
+name=$1
+. /etc/msp/msp.conf
+lib=/usr/local/lib/msp; state=/var/lib/msp/state; log=/var/log/msp
+mkdir -p "$state" "$log" /run/lock
+exec 9>"/run/lock/msp-$name.lock"
+flock -n 9 || { echo "msp-run-check: $name already running" >&2; exit 3; }
+[ -x "$lib/checks/check-$name.sh" ] || { echo "msp-run-check: no such check $name" >&2; exit 3; }
+
+out=$(mktemp) || exit 3
+"$lib/checks/check-$name.sh" > "$out" 2>&1; rc=$?
+msg=$(head -n 1 "$out"); rm -f "$out"
+[ "$rc" -ge 3 ] && { echo "msp-run-check: $name broke: rc=$rc $msg" >&2; exit "$rc"; }
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# state, written whole then moved into place
+prev="$state/$name.state"; new=$(mktemp -p "$state") || exit 3
+printf 'rc=%s\nmsg=%s\nat=%s\n' "$rc" "$msg" "$now" > "$new"
+if [ -f "$prev" ] && [ "$(sed -n 's/^rc=//p' "$prev")" = "$rc" ] && [ "$(sed -n 's/^msg=//p' "$prev")" = "$msg" ]
+then changed=0; else changed=1; fi
+mv -f "$new" "$prev"; chmod 644 "$prev"
+
+# consecutive crit runs before paging
+sf="$state/$name.streak"; s=$(cat "$sf" 2>/dev/null || echo 0)
+if [ "$rc" -ge 2 ]; then s=$((s+1)); else s=0; fi; echo "$s" > "$sf"
+
+if [ "$changed" = 1 ]; then
+  logger -t msp-check "$name changed: rc=$rc $msg"
+  printf '%s %s rc=%s %s\n' "$now" "$name" "$rc" "$msg" >> "$log/changes.log"
+fi
+
+# heartbeat: success = plain ping; warn or crit-below-streak = /log (recorded, no page); crit = /fail (pages)
+uuid=$(sed -n "s/^$name=//p" /etc/msp/healthchecks.conf 2>/dev/null)
+if [ -n "$uuid" ]; then
+  if [ "$rc" -ge 2 ] && [ "$s" -ge "${MSP_CONSECUTIVE:-2}" ]; then ep=/fail
+  elif [ "$rc" -ge 1 ]; then ep=/log
+  else ep=""; fi
+  if curl -fsS -m 10 -o /dev/null --data-raw "$msg" "$MSP_HC_BASE/$uuid$ep"; then hb=sent; else hb=offline; fi
+  printf '%s %s %s%s %s\n' "$now" "$name" "$uuid" "$ep" "$hb" >> "$log/heartbeat.log"
+fi
+exit "$rc"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# ap — run ansible-playbook from the shared venv, logging every run to runs/ so it can be read back.
+cd "$(dirname "$0")/.." || exit 1
+exec .venv/bin/ansible-playbook "$@"

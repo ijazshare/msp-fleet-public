@@ -1,0 +1,6 @@
+# default baseline used by fixture tests
+systemd.expected_failed =
+disk.warn = 80
+disk.crit = 90
+disk.ignore =
+timers.expected = msp-check@systemd.timer msp-check@disk.timer msp-check@timers.timer

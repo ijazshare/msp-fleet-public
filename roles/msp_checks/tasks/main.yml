@@ -1,0 +1,63 @@
+- name: Packages
+  ansible.builtin.apt:
+    name: [curl, bsdutils, util-linux]
+    state: present
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: Directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [/etc/msp, /usr/local/lib/msp, /var/lib/msp/state, /var/log/msp]
+
+- name: Library, checks, fixtures, tests
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /usr/local/lib/msp/
+    mode: preserve
+  loop: [msp-lib.sh, checks, fixtures, tests]
+
+- name: Runner and alert
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /usr/local/bin/{{ item }}
+    mode: "0755"
+  loop: [msp-run-check, msp-alert]
+
+- name: Effective baseline (defaults, then timers derived from msp_checks, then site overrides)
+  ansible.builtin.set_fact:
+    msp_baseline_effective: >-
+      {{ msp_baseline_defaults
+         | combine({'timers.expected': msp_checks | map('regex_replace', '^(.*)$', 'msp-check@\1.timer') | join(' ')})
+         | combine(msp_baseline) }}
+
+- name: Config files
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/msp/{{ item }}
+    mode: "0644"
+  loop: [msp.conf, baseline.conf, healthchecks.conf]
+
+- name: Units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop: ["msp-check@.service", "msp-check@.timer", "msp-alert@.service"]
+  notify: daemon-reload
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Timers enabled and started
+  ansible.builtin.systemd:
+    name: "msp-check@{{ item }}.timer"
+    enabled: true
+    state: started
+  loop: "{{ msp_checks }}"
+
+- name: Fixture self-test on the node
+  ansible.builtin.command: sh /usr/local/lib/msp/tests/run.sh
+  changed_when: false

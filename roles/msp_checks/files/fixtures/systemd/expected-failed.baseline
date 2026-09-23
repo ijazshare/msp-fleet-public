@@ -1,0 +1,1 @@
+systemd.expected_failed = msp-testfail.service

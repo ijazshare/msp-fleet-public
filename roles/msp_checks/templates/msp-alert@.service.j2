@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MSP checker-broke alert for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/msp-alert %i

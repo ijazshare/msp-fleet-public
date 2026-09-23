@@ -1,0 +1,6 @@
+# Build or repair a site. Idempotent: a second run changes nothing.
+#   ansible-playbook playbooks/site.yml -l SITE
+- name: Site box
+  hosts: box
+  roles:
+    - msp_checks

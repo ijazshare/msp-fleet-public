@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MSP check %i
+OnFailure=msp-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/msp-run-check %i
+# 0 ok, 1 warn, 2 crit are findings, not failures. Only 3+ / signal / timeout fail the unit and fire OnFailure.
+SuccessExitStatus=0 1 2
+TimeoutStartSec=10min

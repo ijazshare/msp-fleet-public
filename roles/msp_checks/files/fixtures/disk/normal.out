@@ -1,0 +1,4 @@
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/nvme0n1p2   98293404 41234560  52016532      45% /
+/dev/nvme0n1p1     523244     5952    517292       2% /boot/efi
+rpool/data      1887436800 12345678 1875091122      1% /rpool/data

@@ -1,0 +1,11 @@
+msp_checks: [systemd, disk, timers]
+msp_interval: 15min
+msp_hc_base: https://hc-ping.com
+msp_consecutive: 2            # crit runs in a row before /fail pages you
+msp_healthchecks: {}          # check-name: uuid, plus _checker: uuid. Per site in group_vars.
+msp_baseline: {}              # per-site overrides of the keys below
+msp_baseline_defaults:
+  systemd.expected_failed: ""
+  disk.warn: 80
+  disk.crit: 90
+  disk.ignore: ""

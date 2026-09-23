@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MSP check %i timer
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec={{ msp_interval }}
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

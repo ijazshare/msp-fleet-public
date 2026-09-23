@@ -1,0 +1,22 @@
+# First playbook: prove the laptop can reach every host as the inventory user.
+#   ansible-playbook playbooks/ping.yml
+- name: Reachability and identity
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Ping
+      ansible.builtin.ping:
+
+    - name: Is this a Proxmox VE host?
+      ansible.builtin.stat:
+        path: /usr/bin/pveversion
+      register: pve
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} ({{ ansible_host }}) =
+          {{ ansible_distribution }} {{ ansible_distribution_version }},
+          kernel {{ ansible_kernel }},
+          {{ 'PVE host' if pve.stat.exists else 'not PVE (CT/VM)' }},
+          site={{ site }}
