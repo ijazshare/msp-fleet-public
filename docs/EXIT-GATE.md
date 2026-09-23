@@ -17,7 +17,8 @@ boxes below are ticked with a date. Written 2026-09-23; target date: ____-__-__.
 - [ ] **Gate tests passed on the real hosts**: shell as the agent account refused; stage with the cron key
       refused; never-list command refused with and without the DESTRUCTIVE label; wrong code consumes the
       stage; second stage while one is pending refused; expired stage refused; spool empty during the
-      code prompt; LLM's SSH output after staging contains no code. Date: ____
+      code prompt; LLM's SSH output after staging contains no code. Date: 2026-09-23 (host.invalid, 12/12 matched;
+      expiry not yet exercised on hardware, proven in sandbox)
 - [ ] **Config-drift check caught a deliberate edit**: one comment added to a watched file produced exactly
       one alert naming that file. Date: ____
 
@@ -25,3 +26,4 @@ Injections and drills log (one line each, newest first):
 
 | Date (UTC) | Node | What was done | Expected alert | Alert seen |
 | --- | --- | --- | --- | --- |
+| 2026-09-23 23:26 | host.invalid | Gate drill, 12 steps: stage, double-stage refused, pending, wrong code aborts and consumes, right code runs with RESULT line, receipt read back, never-list refused with DESTRUCTIVE label, deny-list refused without it, DESTRUCTIVE target mismatch aborts then correct target runs, pause hides a secret and redaction masks token=, guarantee self-test OK, stage refused with no recording | none (drill, not a fault) | none |
