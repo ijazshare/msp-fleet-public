@@ -1,0 +1,8 @@
+# msp: prompt shows which seat you are in. Sourced from ~/.bashrc.
+if [ "${MSP_SCRATCH:-0}" = 1 ]; then
+  PS1='\[\e[1;35m\][SCRATCH]\[\e[0m\] \u@\h:\w\$ '
+else
+  PS1='\[\e[1;34m\][PLAN]\[\e[0m\] \u@\h:\w\$ '
+fi
+# copy test: run  msp-copytest  then paste on the laptop; you should get "clipboard ok from <host>"
+msp-copytest() { printf '\033]52;c;%s\a' "$(printf 'clipboard ok from %s' "$(hostname)" | base64 | tr -d '\n')"; echo "sent to clipboard via OSC 52; now paste on the laptop"; }

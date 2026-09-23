@@ -29,6 +29,31 @@
     dest: /usr/local/bin/msp-tmux
     mode: "0755"
 
+- name: tmux config (Plan blue, Scratch magenta, clipboard forwarding)
+  ansible.builtin.copy:
+    src: tmux.conf
+    dest: /home/{{ msp_llm_user }}/.tmux.conf
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+
+- name: Prompt shows the seat
+  ansible.builtin.copy:
+    src: bashrc-msp
+    dest: /home/{{ msp_llm_user }}/.bashrc-msp
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+
+- name: bashrc sources it
+  ansible.builtin.lineinfile:
+    path: /home/{{ msp_llm_user }}/.bashrc
+    line: '[ -f ~/.bashrc-msp ] && . ~/.bashrc-msp'
+    create: true
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+
 - name: Auto-attach tmux on login
   ansible.builtin.copy:
     dest: /home/{{ msp_llm_user }}/.bash_profile

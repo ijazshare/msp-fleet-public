@@ -94,6 +94,10 @@ x su -s /bin/sh -c 'XDG_RUNTIME_DIR=/tmp/xdg; export XDG_RUNTIME_DIR; mkdir -p $
 x su -s /bin/sh -c 'tmux send-keys -t msp:scratch "echo SCR=\$CLAUDE_CONFIG_DIR:\$MSP_SCRATCH > /tmp/scr.env" Enter; tmux send-keys -t msp:plan "echo PLAN=\$CLAUDE_CONFIG_DIR:\$MSP_SCRATCH > /tmp/plan.env" Enter' llm; sleep 1
 x grep -q 'SCR=/tmp/xdg/claude-scratch:1' /tmp/scr.env; t $? "scratch window: own CLAUDE_CONFIG_DIR on tmpfs and MSP_SCRATCH=1 ($(x cat /tmp/scr.env))"
 x grep -q '^PLAN=:$' /tmp/plan.env; t $? "plan window: default config dir, no scratch flag ($(x cat /tmp/plan.env))"
+x su -s /bin/sh -c 'tmux select-window -t msp:scratch; tmux display -p "#{status-style}"' llm | grep -q colour125; t $? "scratch window: magenta status bar"
+x su -s /bin/sh -c 'tmux select-window -t msp:plan; tmux display -p "#{status-style}"' llm | grep -q colour25; t $? "plan window: blue status bar"
+x su -s /bin/sh -c 'tmux show -gv set-clipboard' llm | grep -q '^on$'; t $? "clipboard forwarding on"
+x su -s /bin/sh -c 'MSP_SCRATCH=1 bash -ic "echo \$PS1"' llm 2>/dev/null | grep -q SCRATCH; t $? "scratch prompt shows [SCRATCH]"
 x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
 
 # 10 idempotence is checked by the caller (second playbook run: changed=0)
