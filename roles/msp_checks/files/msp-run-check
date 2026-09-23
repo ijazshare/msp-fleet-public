@@ -13,7 +13,7 @@ flock -n 9 || { echo "msp-run-check: $name already running" >&2; exit 3; }
 out=$(mktemp) || exit 3
 "$lib/checks/check-$name.sh" > "$out" 2>&1; rc=$?
 msg=$(head -n 1 "$out"); rm -f "$out"
-[ "$rc" -ge 3 ] && { echo "msp-run-check: $name broke: rc=$rc $msg" >&2; exit "$rc"; }
+if [ "$rc" -ge 3 ]; then echo "msp-run-check: $name broke: rc=$rc $msg" >&2; exit "$rc"; fi
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # state, written whole then moved into place
@@ -32,13 +32,21 @@ if [ "$changed" = 1 ]; then
   printf '%s %s rc=%s %s\n' "$now" "$name" "$rc" "$msg" >> "$log/changes.log"
 fi
 
-# heartbeat: success = plain ping; warn or crit-below-streak = /log (recorded, no page); crit = /fail (pages)
+# heartbeat. Healthchecks counts only plain pings as "alive", so: alive (ok, warn, crit below streak) = plain
+# ping carrying the message; crit at streak = /fail, which pages by check name. Findings live in the state file.
+hc() { # hc LABEL UUID SUFFIX BODY
+  if curl -fsS -m 10 -o /dev/null --data-raw "$4" "$MSP_HC_BASE/$2$3"; then hb=sent; else hb=offline; fi
+  printf '%s %s %s%s %s\n' "$now" "$1" "$2" "$3" "$hb" >> "$log/heartbeat.log"
+}
 uuid=$(sed -n "s/^$name=//p" /etc/msp/healthchecks.conf 2>/dev/null)
 if [ -n "$uuid" ]; then
-  if [ "$rc" -ge 2 ] && [ "$s" -ge "${MSP_CONSECUTIVE:-2}" ]; then ep=/fail
-  elif [ "$rc" -ge 1 ]; then ep=/log
-  else ep=""; fi
-  if curl -fsS -m 10 -o /dev/null --data-raw "$msg" "$MSP_HC_BASE/$uuid$ep"; then hb=sent; else hb=offline; fi
-  printf '%s %s %s%s %s\n' "$now" "$name" "$uuid" "$ep" "$hb" >> "$log/heartbeat.log"
+  if [ "$rc" -ge 2 ] && [ "$s" -ge "${MSP_CONSECUTIVE:-2}" ]; then ep=/fail; else ep=""; fi
+  hc "$name" "$uuid" "$ep" "$msg"
+fi
+# the checker ID otherwise only ever receives /fail from msp-alert and would read as never pinged:
+# the heartbeat run keeps it alive, so only a real checker crash flips it.
+if [ "$name" = heartbeat ]; then
+  cu=$(sed -n 's/^_checker=//p' /etc/msp/healthchecks.conf 2>/dev/null)
+  [ -n "$cu" ] && hc _checker "$cu" "" "checker alive"
 fi
 exit "$rc"

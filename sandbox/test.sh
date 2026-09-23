@@ -13,6 +13,9 @@ t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 # 2 three timers scheduled
 n=$(x systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '$3=="active"' | wc -l)
 [ "$n" = 5 ]; t $? "5 timers active (got $n)"
+# from here on only explicit runs: the boot-time timer firings would interleave with the assertions
+alltimers() { for c in heartbeat systemd disk configdump timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
+alltimers stop
 
 # 3 a check run writes state and a heartbeat
 x systemctl start msp-check@disk.service
@@ -30,10 +33,10 @@ x rm -f /usr/local/lib/msp/checks/check-crash.sh; x systemctl reset-failed msp-c
 
 # 5 baseline flip with a deliberately failed unit; consecutive gating; expected-failed clears it
 x sh -c 'printf "[Service]\nType=oneshot\nExecStart=/bin/false\n" > /etc/systemd/system/msp-testfail.service; systemctl daemon-reload; systemctl start msp-testfail.service' 2>/dev/null
-ch0=$(x sh -c 'grep -c " systemd rc=" /var/log/msp/changes.log 2>/dev/null || echo 0')
+ch0=$(x sh -c 'grep -c " systemd rc=" /var/log/msp/changes.log 2>/dev/null; true' | head -n1); ch0=${ch0:-0}
 x systemctl start msp-check@systemd.service
 x grep -q '^rc=2' /var/lib/msp/state/systemd.state; t $? "unexpected failed unit -> CRIT: $(x sed -n 's/^msg=//p' /var/lib/msp/state/systemd.state)"
-x grep -q '^POST /hc-systemd/log ' /var/log/msp/hc-fake.log; t $? "first crit run -> /log only (consecutive=2)"
+x grep -q '^POST /hc-systemd CRIT failed units' /var/log/msp/hc-fake.log; t $? "first crit run -> plain ping carrying the finding (consecutive=2)"
 x systemctl start msp-check@systemd.service
 x grep -q '^POST /hc-systemd/fail ' /var/log/msp/hc-fake.log; t $? "second crit run -> /fail pages"
 x sh -c 'cur=$(sed -n "s/^systemd.expected_failed = //p" /etc/msp/baseline.conf | tail -n1); echo "systemd.expected_failed = $cur msp-testfail.service" >> /etc/msp/baseline.conf'
@@ -45,12 +48,14 @@ c=$(x grep -c ' systemd rc=' /var/log/msp/changes.log); [ "$c" = "$((ch0+2))" ];
 x sh -c 'exec 9>/run/lock/msp-disk.lock; flock 9; /usr/local/bin/msp-run-check disk; echo rc=$?' | grep -q 'rc=3'; t $? "concurrent run refused by lock"
 
 # 7 item 2: a stopped timer is a CRIT finding of the timers check
-x systemctl stop msp-check@disk.timer
+alltimers start; x systemctl stop msp-check@disk.timer
 x systemctl start msp-check@timers.service
 x grep -q 'inactive: msp-check@disk.timer' /var/lib/msp/state/timers.state; t $? "stopped timer detected: $(x sed -n 's/^msg=//p' /var/lib/msp/state/timers.state)"
-x systemctl start msp-check@disk.timer
+alltimers stop
 
-# 8 item 2: endpoint unreachable -> heartbeat logged offline, check still writes state
+# 8 item 2: heartbeat keeps the checker ID alive; then endpoint unreachable -> logged offline, state still written
+x systemctl start msp-check@heartbeat.service
+x grep -q '^POST /hc-checker checker alive' /var/log/msp/hc-fake.log; t $? "heartbeat run keeps the checker ID alive with a plain ping"
 x systemctl stop hc-fake
 x systemctl start msp-check@heartbeat.service
 x grep -q 'heartbeat hc-heartbeat offline' /var/log/msp/heartbeat.log; t $? "endpoint down -> heartbeat logged offline"
@@ -64,7 +69,7 @@ c0=$(x git -C /var/lib/msp/dump log --oneline | wc -l)
 x sh -c 'echo "# drift test" >> /etc/hosts'
 x systemctl start msp-check@configdump.service
 x grep -q '^rc=1' /var/lib/msp/state/configdump.state && x grep -q 'etc/hosts' /var/lib/msp/state/configdump.state; t $? "edit -> WARN naming the file: $(x sed -n 's/^msg=//p' /var/lib/msp/state/configdump.state)"
-x grep -q '^POST /hc-configdump/log ' /var/log/msp/hc-fake.log; t $? "drift went to /log, did not page"
+x grep -q '^POST /hc-configdump WARN config changed' /var/log/msp/hc-fake.log; t $? "drift rides a plain ping with the message, did not page"
 c1=$(x git -C /var/lib/msp/dump log --oneline | wc -l); [ "$c1" = "$((c0+1))" ]; t $? "edit produced exactly one dump commit ($c0 -> $c1)"
 x sh -c 'test ! -e /var/lib/msp/dump/etc/pve/priv && test -z "$(find /var/lib/msp/dump -name "*.key")"'; t $? "no priv/ or *.key in the dump"
 x stat -c %a /var/lib/msp/dump | grep -q '^700$'; t $? "dump dir is root-only (0700)"
