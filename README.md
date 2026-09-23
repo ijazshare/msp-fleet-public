@@ -48,6 +48,13 @@ You review by reading the tables, not the scripts.
     ansible-playbook playbooks/ping.yml
     ansible-playbook playbooks/ping.yml -l SITE      # one site only
 
+## Homelab topology (2026-09-23)
+
+    host.invalid   N5 Air, production hypervisor (192.0.2.3). Monitored only.
+    host.invalid   Lenovo Core 7, lab hypervisor. Every destructive test runs here. PBS VM lives here.
+    host.invalid   N305, the site box (plain Debian 12).
+    UNAS 2        192.0.2.1, NFS: vzdump target and PBS datastore export.
+
 ## Adding a site
 
 Copy the `SITE` block in `inventory/hosts.yml`, rename, set the two addresses,
