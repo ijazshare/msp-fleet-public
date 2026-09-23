@@ -16,7 +16,7 @@
       ansible.builtin.debug:
         msg: >-
           {{ inventory_hostname }} ({{ ansible_host }}) =
-          {{ ansible_distribution }} {{ ansible_distribution_version }},
-          kernel {{ ansible_kernel }},
+          {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }},
+          kernel {{ ansible_facts['kernel'] }},
           {{ 'PVE host' if pve.stat.exists else 'not PVE (CT/VM)' }},
           site={{ site }}
