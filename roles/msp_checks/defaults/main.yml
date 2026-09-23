@@ -1,4 +1,4 @@
-msp_checks: [systemd, disk, timers]
+msp_checks: [heartbeat, systemd, disk, timers]
 msp_interval: 15min
 msp_hc_base: https://hc-ping.com
 msp_consecutive: 2            # crit runs in a row before /fail pages you

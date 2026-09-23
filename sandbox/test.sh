@@ -12,7 +12,7 @@ t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 
 # 2 three timers scheduled
 n=$(x systemctl list-timers --all --no-legend --plain 'msp-check@*' | grep -vc '^-' )
-[ "$n" = 3 ]; t $? "3 timers scheduled (got $n)"
+[ "$n" = 4 ]; t $? "4 timers scheduled (got $n)"
 
 # 3 a check run writes state and a heartbeat
 x systemctl start msp-check@disk.service
@@ -43,6 +43,19 @@ c=$(x grep -c ' systemd rc=' /var/log/msp/changes.log); [ "$c" = 2 ]; t $? "chan
 # 6 lock: a second concurrent run is refused with exit 3
 x sh -c 'exec 9>/run/lock/msp-disk.lock; flock 9; /usr/local/bin/msp-run-check disk; echo rc=$?' | grep -q 'rc=3'; t $? "concurrent run refused by lock"
 
-# 7 idempotence is checked by the caller (second playbook run: changed=0)
+# 7 item 2: a stopped timer is a CRIT finding of the timers check
+x systemctl stop msp-check@disk.timer
+x systemctl start msp-check@timers.service
+x grep -q 'inactive: msp-check@disk.timer' /var/lib/msp/state/timers.state; t $? "stopped timer detected: $(x sed -n 's/^msg=//p' /var/lib/msp/state/timers.state)"
+x systemctl start msp-check@disk.timer
+
+# 8 item 2: endpoint unreachable -> heartbeat logged offline, check still writes state
+x systemctl stop hc-fake
+x systemctl start msp-check@heartbeat.service
+x grep -q 'heartbeat hc-heartbeat offline' /var/log/msp/heartbeat.log; t $? "endpoint down -> heartbeat logged offline"
+x grep -q '^rc=0' /var/lib/msp/state/heartbeat.state; t $? "check still ran and wrote state while offline"
+x systemctl start hc-fake
+
+# 9 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"
 [ $fail = 0 ]

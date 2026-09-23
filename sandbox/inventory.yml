@@ -7,4 +7,4 @@ all:
           ansible_host: msp-sandbox
           site: sandbox
           msp_hc_base: http://127.0.0.1:8099
-          msp_healthchecks: {systemd: hc-systemd, disk: hc-disk, timers: hc-timers, _checker: hc-checker}
+          msp_healthchecks: {heartbeat: hc-heartbeat, systemd: hc-systemd, disk: hc-disk, timers: hc-timers, _checker: hc-checker}

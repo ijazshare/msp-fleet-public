@@ -11,5 +11,5 @@ i=0; until docker exec msp-sandbox systemctl is-system-running 2>/dev/null | gre
   i=$((i+1)); [ $i -gt 20 ] && { echo "sandbox did not boot"; docker logs msp-sandbox; exit 1; }; sleep 1; done
 docker exec msp-sandbox mkdir -p /var/log/msp /usr/local/bin
 docker cp hc-fake.py msp-sandbox:/usr/local/bin/hc-fake.py
-docker exec msp-sandbox systemd-run --quiet --unit hc-fake python3 /usr/local/bin/hc-fake.py
+docker exec msp-sandbox sh -c 'printf "[Service]\nExecStart=/usr/bin/python3 /usr/local/bin/hc-fake.py\nRestart=no\n" > /etc/systemd/system/hc-fake.service; systemctl daemon-reload; systemctl start hc-fake'
 echo "sandbox up"
