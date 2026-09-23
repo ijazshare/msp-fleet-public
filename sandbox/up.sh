@@ -12,4 +12,7 @@ i=0; until docker exec msp-sandbox systemctl is-system-running 2>/dev/null | gre
 docker exec msp-sandbox mkdir -p /var/log/msp /usr/local/bin
 docker cp hc-fake.py msp-sandbox:/usr/local/bin/hc-fake.py
 docker exec msp-sandbox sh -c 'printf "[Service]\nExecStart=/usr/bin/python3 /usr/local/bin/hc-fake.py\nRestart=no\n" > /etc/systemd/system/hc-fake.service; systemctl daemon-reload; systemctl start hc-fake'
+docker exec msp-sandbox git config --system --add safe.directory '*'
+# a fake client repo origin with an old-style CLAUDE.md, like the real SITE repo
+docker exec msp-sandbox sh -c 'git init -q --bare /srv/fake-origin.git && d=$(mktemp -d) && cd $d && git init -q . && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init && echo "# old reconciliation instructions" > CLAUDE.md && echo "# notes" > README.md && git add -A && git -c user.name=t -c user.email=t@t commit -q -m docs && git push -q /srv/fake-origin.git HEAD:master && rm -rf $d; chmod -R a+rwX /srv/fake-origin.git' 2>/dev/null
 echo "sandbox up"

@@ -4,3 +4,4 @@
   hosts: box
   roles:
     - msp_checks
+    - msp_box

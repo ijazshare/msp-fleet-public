@@ -1,0 +1,165 @@
+- name: Packages
+  ansible.builtin.apt:
+    name: [tmux, git, openssh-client, ca-certificates]
+    state: present
+
+- name: llm user (no sudo, no password)
+  ansible.builtin.user:
+    name: "{{ msp_llm_user }}"
+    shell: /bin/bash
+    create_home: true
+    password: "!"
+
+- name: llm is in no privileged group
+  ansible.builtin.command: id -nG {{ msp_llm_user }}
+  register: llm_groups
+  changed_when: false
+  failed_when: "'sudo' in llm_groups.stdout.split() or 'adm' in llm_groups.stdout.split() or 'root' in llm_groups.stdout.split()"
+
+- name: Launcher
+  ansible.builtin.copy:
+    src: msp-tmux
+    dest: /usr/local/bin/msp-tmux
+    mode: "0755"
+
+- name: Auto-attach tmux on login
+  ansible.builtin.copy:
+    dest: /home/{{ msp_llm_user }}/.bash_profile
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+    content: |
+      [ -f ~/.bashrc ] && . ~/.bashrc
+      [ -z "${TMUX:-}" ] && [ -t 0 ] && exec msp-tmux
+
+- name: Deploy key for the client repo
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C "{{ msp_llm_user }}@{{ inventory_hostname }} deploy" -f /home/{{ msp_llm_user }}/.ssh/id_ed25519
+    creates: /home/{{ msp_llm_user }}/.ssh/id_ed25519
+  become: true
+  become_user: "{{ msp_llm_user }}"
+
+- name: GitHub host key known
+  ansible.builtin.known_hosts:
+    path: /home/{{ msp_llm_user }}/.ssh/known_hosts
+    name: github.com
+    key: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  when: msp_repo_url is search('github.com')
+
+- name: Repo directory name
+  ansible.builtin.set_fact:
+    msp_repo_path: "{{ msp_repo_dir if msp_repo_dir else '/home/' + msp_llm_user + '/' + (msp_repo_url | basename | regex_replace('\\.git$', '')) }}"
+  when: msp_repo_url != ""
+
+- name: Clone the client repo, soft until the deploy key is registered
+  ansible.builtin.git:
+    repo: "{{ msp_repo_url }}"
+    dest: "{{ msp_repo_path }}"
+    accept_hostkey: false
+    update: false
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  register: clone
+  ignore_errors: true
+  when: msp_repo_url != ""
+
+- name: Remember the repo path for the launcher
+  ansible.builtin.copy:
+    dest: /home/{{ msp_llm_user }}/.msp-repo
+    content: "{{ msp_repo_path }}\n"
+    owner: "{{ msp_llm_user }}"
+    group: "{{ msp_llm_user }}"
+    mode: "0644"
+  when: msp_repo_url != ""
+
+- name: Deploy key not yet accepted by the remote
+  ansible.builtin.debug:
+    msg: "Clone failed. Add the deploy key below (write access) to {{ msp_repo_url }} on GitHub, then run the playbook again."
+  when: msp_repo_url != "" and clone.failed is defined and clone.failed
+
+- name: Show the deploy public key
+  ansible.builtin.command: cat /home/{{ msp_llm_user }}/.ssh/id_ed25519.pub
+  changed_when: false
+  register: pubkey
+  when: msp_repo_url != "" and clone.failed is defined and clone.failed
+
+- name: Deploy public key
+  ansible.builtin.debug:
+    var: pubkey.stdout
+  when: pubkey.stdout is defined
+
+- name: Repo present?
+  ansible.builtin.stat:
+    path: "{{ msp_repo_path }}/.git"
+  register: repo_git
+  when: msp_repo_url != ""
+
+- name: Repo layout, rules file, and tool memory inside the repo
+  when: msp_repo_url != "" and repo_git.stat.exists
+  become: true
+  become_user: "{{ msp_llm_user }}"
+  block:
+    - name: Layout directories
+      ansible.builtin.file:
+        path: "{{ msp_repo_path }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [sessions, state, runbooks, handover, memory/claude]
+
+    - name: Keep empty directories in git
+      ansible.builtin.copy:
+        dest: "{{ msp_repo_path }}/{{ item }}/.keep"
+        content: ""
+        mode: "0644"
+        force: false
+      loop: [sessions, state, runbooks, handover, memory/claude]
+
+    - name: AGENTS.md
+      ansible.builtin.template:
+        src: AGENTS.md.j2
+        dest: "{{ msp_repo_path }}/AGENTS.md"
+        mode: "0644"
+
+    - name: CLAUDE.md points at AGENTS.md (an existing file is kept in git history)
+      ansible.builtin.file:
+        path: "{{ msp_repo_path }}/CLAUDE.md"
+        src: AGENTS.md
+        state: link
+        force: true
+
+    - name: Claude Code project memory lives in the repo
+      ansible.builtin.file:
+        path: "/home/{{ msp_llm_user }}/.claude/projects/{{ msp_repo_path | regex_replace('/', '-') }}"
+        state: directory
+        mode: "0700"
+
+    - name: Memory symlink
+      ansible.builtin.file:
+        path: "/home/{{ msp_llm_user }}/.claude/projects/{{ msp_repo_path | regex_replace('/', '-') }}/memory"
+        src: "{{ msp_repo_path }}/memory/claude"
+        state: link
+        force: true
+
+    - name: Git identity for the box
+      community.general.git_config:
+        scope: global
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+      loop:
+        - {name: user.name, value: "{{ msp_llm_user }}@{{ inventory_hostname }}"}
+        - {name: user.email, value: "{{ msp_llm_user }}@{{ inventory_hostname }}.invalid"}
+
+    - name: Commit the layout and rules file if they changed
+      ansible.builtin.shell: |
+        cd {{ msp_repo_path }} && git add -A AGENTS.md CLAUDE.md sessions state runbooks handover memory && \
+        if ! git diff --cached --quiet; then git commit -q -m "msp: rules file and layout (ansible)"; echo committed; fi
+      register: layout_commit
+      changed_when: "'committed' in layout_commit.stdout"
+
+    - name: Push, soft (the remote may be offline or the key not yet accepted)
+      ansible.builtin.command: git -C {{ msp_repo_path }} push -q
+      register: push
+      failed_when: false
+      changed_when: push.rc == 0 and layout_commit.changed

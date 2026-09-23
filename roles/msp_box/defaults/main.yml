@@ -1,0 +1,6 @@
+msp_llm_user: llm
+msp_repo_url: ""                 # per site: git@github.com:you/client-repo.git (deploy key is generated on the box)
+msp_repo_dir: ""                 # default: /home/llm/<repo name>
+msp_client_name: "{{ site }}"
+msp_never_stage: []              # per site: commands that can never be staged, whatever the label
+msp_client_rules: ""             # per site: extra prose for the client section of AGENTS.md

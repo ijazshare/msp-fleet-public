@@ -15,6 +15,7 @@ cap uname uname -a
 cap os cat /etc/os-release
 cap systemd-failed systemctl --failed --no-legend --plain
 cap list-timers systemctl list-timers --all --no-legend --plain
+cap list-units-timers systemctl list-units --type=timer --all --no-legend --plain
 cap df df -P -l -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs
 cap timedatectl timedatectl show
 cap chronyc chronyc tracking

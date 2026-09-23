@@ -1,0 +1,17 @@
+#!/bin/sh
+# msp-tmux: attach to the llm user's tmux session, creating it with the Plan and Scratch windows if absent.
+# Plan: cwd = the client repo, tool memory lives in the repo. Scratch: same repo read-only in spirit, but
+# CLAUDE_CONFIG_DIR points at a tmpfs under $XDG_RUNTIME_DIR so nothing said there is remembered.
+# ponytail: Antigravity has no config-dir variable yet; its Scratch isolation (unshare -Urm) is v1.1.
+set -u
+repo=$(cat "$HOME/.msp-repo" 2>/dev/null || echo "$HOME")
+if ! tmux has-session -t msp 2>/dev/null; then
+  scratch="${XDG_RUNTIME_DIR:-/tmp}/claude-scratch"
+  mkdir -p "$scratch" && chmod 700 "$scratch"
+  [ -f "$HOME/.claude/.credentials.json" ] && cp "$HOME/.claude/.credentials.json" "$scratch/"
+  tmux new-session -d -s msp -n plan -c "$repo"
+  tmux new-window -t msp -n scratch -c "$repo" -e "CLAUDE_CONFIG_DIR=$scratch" -e "MSP_SCRATCH=1"
+  tmux select-window -t msp:plan
+fi
+[ -t 0 ] && exec tmux attach -t msp
+exit 0

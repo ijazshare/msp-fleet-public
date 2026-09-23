@@ -2,3 +2,6 @@
 agent_user: pve-agent        # unprivileged account on the PVE host that the agent SSHes in as
 agent_group: qcap-ro
 ct_llm_user: llm             # login user on the agent CT that runs Claude Code / AGY / whatever
+
+# Ansible connects as root everywhere; dropping to another user uses su (sudo is not installed on a minimal Debian).
+ansible_become_method: su

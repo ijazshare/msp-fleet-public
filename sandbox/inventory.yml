@@ -6,5 +6,8 @@ all:
           ansible_connection: community.docker.docker
           ansible_host: msp-sandbox
           site: sandbox
+          msp_repo_url: /srv/fake-origin.git
+          msp_baseline: {systemd.expected_failed: systemd-modules-load.service}   # container artifact
+          msp_never_stage: ["zpool destroy"]
           msp_hc_base: http://127.0.0.1:8099
           msp_healthchecks: {heartbeat: hc-heartbeat, systemd: hc-systemd, disk: hc-disk, timers: hc-timers, _checker: hc-checker, configdump: hc-configdump}

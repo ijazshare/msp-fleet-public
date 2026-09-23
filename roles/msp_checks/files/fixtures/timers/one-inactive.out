@@ -1,5 +1,0 @@
-Tue 2026-09-23 03:15:00 UTC 12min left  Tue 2026-09-23 03:00:00 UTC 2min ago     msp-check@heartbeat.timer msp-check@heartbeat.service
-Tue 2026-09-23 03:15:00 UTC 12min left  Tue 2026-09-23 03:00:00 UTC 2min ago     msp-check@disk.timer      msp-check@disk.service
--                           -           Tue 2026-09-23 03:00:00 UTC 2min ago     msp-check@systemd.timer   msp-check@systemd.service
-Tue 2026-09-23 03:15:00 UTC 12min left  Tue 2026-09-23 03:00:00 UTC 2min ago     msp-check@timers.timer    msp-check@timers.service
-Tue 2026-09-23 09:15:00 UTC 5h left     Tue 2026-09-23 03:00:00 UTC 2min ago     msp-check@configdump.timer msp-check@configdump.service

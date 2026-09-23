@@ -3,7 +3,8 @@ apt-daily.timer              loaded active   waiting Daily apt download activiti
 dpkg-db-backup.timer         loaded active   waiting Daily dpkg database backup timer
 fstrim.timer                 loaded inactive dead    Discard unused filesystem blocks once a week
 msp-check@configdump.timer   loaded active   waiting MSP check configdump timer
-msp-check@disk.timer         loaded active   waiting MSP check disk timer
+msp-check@disk.timer         loaded inactive dead    MSP check disk timer
 msp-check@heartbeat.timer    loaded active   waiting MSP check heartbeat timer
+msp-check@systemd.timer      loaded active   waiting MSP check systemd timer
 msp-check@timers.timer       loaded active   waiting MSP check timers timer
 systemd-tmpfiles-clean.timer loaded active   waiting Daily Cleanup of Temporary Directories
