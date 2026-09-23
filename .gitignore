@@ -2,3 +2,4 @@
 .vault_pass
 inventory/*.local.yml
 runs/*.log
+fixtures-in/
