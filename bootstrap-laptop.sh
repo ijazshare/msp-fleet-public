@@ -35,7 +35,7 @@ if [[ ! -f /home/ops/.ssh/id_ed25519 ]]; then
     sudo -u ops ssh-keygen -t ed25519 -f /home/ops/.ssh/id_ed25519 -C "ops@$(hostname)"
 fi
 
-# The daily entry: `ops SITE` from your normal login opens Plan + Exec for that site as the ops user.
+# The daily entry: `ops SITE TARGET` from your normal login opens Plan + Exec (on TARGET) for that site as the ops user.
 cat > /usr/local/bin/ops <<'EOF2'
 #!/bin/sh
 exec sudo -u ops -i /srv/pve-fleet/bin/ops-launch "$@"
@@ -55,7 +55,7 @@ Done. ops's public key (add it to GitHub, then on each PVE web shell run
 
 $(cat /home/ops/.ssh/id_ed25519.pub)
 
-Daily:  ops SITE        (Plan on the box, Exec on the lab hypervisor, side by side)
+Daily:  ops SITE pve    (Plan on the box, Exec on that hypervisor, side by side; ops SITE lab for the lab)
 Deploy: sudo -iu ops       then  ap playbooks/site.yml -l SITE
 
 Log out and back in once so your own user picks up the 'fleet' group.

@@ -195,7 +195,7 @@ Alternatives:
 
 **Chosen: tmux on the remote side always, started by the launcher, and a terminal on the laptop that passes OSC 52 clipboard writes.** WezTerm first choice; Kitty second. GNOME Terminal has historically dropped OSC 52, which is why copying out of a tmux session over SSH fails today. Test it with the one-liner in your v1 notes; if it fails, switch.
 
-The launcher, `ops <site>` (`bin/ops-launch`), opens one tmux window with two panes: Plan on the left (`llm` on the site box; logging in attaches the `msp-tmux` session automatically) and Exec on the right (root on the site's gated hypervisor inside `msp-shell`). Opening the Exec seat is what starts the recorder; there is no separate switch to forget.
+The launcher, `ops <site> <target>` (`bin/ops-launch`), opens one tmux window per target with two panes: Plan on the left (`llm` on the site box; logging in attaches the `msp-tmux` session automatically) and Exec on the right (root on that gated hypervisor inside `msp-shell`). `target` is the host's short name, the same one `msp` uses on the box (`pve`, `lab`, `pbs`), and may be omitted when the site has exactly one gated host. Opening the Exec seat is what starts the recorder; there is no separate switch to forget.
 
 Alternatives:
 

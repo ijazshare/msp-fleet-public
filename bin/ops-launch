@@ -1,32 +1,48 @@
 #!/bin/sh
-# ops-launch SITE [--print]: the daily entry. One tmux window on the laptop: left = Plan (llm on the site box),
-# right = Exec (root on the site's lab/exec hypervisor inside msp-shell, red). Run as the ops user; `ops SITE` wraps it.
+# ops-launch SITE [TARGET] [--print|end]: the daily entry. One tmux session per site on the laptop, one window per
+# target: left = Plan (llm on the site box), right = Exec (root on TARGET inside msp-shell, red). Run as the ops
+# user; `ops SITE TARGET` wraps it. TARGET is the short name of a gated hypervisor at the site (pve, lab, pbs ...),
+# the same name `msp TARGET VERB` uses on the box; it may be omitted when the site has exactly one gated host.
 # Reads the fleet inventory so nothing is typed twice. --print shows the two ssh commands and exits.
 set -eu
-site=${1:?usage: ops SITE [--print|end]}; shift; print=${1:-}
+site=${1:?usage: ops SITE [TARGET] [--print|end]}; shift
+target=; case ${1:-} in ''|--print|end) ;; *) target=$1; shift;; esac
+mode=${1:-}
 cd "$(dirname "$0")/.."
 inv() { .venv/bin/ansible-inventory --host "$1" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ansible_host",""))'; }
-box=$(inv "$site-box"); exech=$(.venv/bin/ansible-inventory --graph "$site" 2>/dev/null | sed -n 's/^ *|--\('"$site"'-[a-z]*\)$/\1/p' | grep -v -- "-box$\|-agent$" | while read -r h; do g=$(.venv/bin/ansible-inventory --host "$h" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("msp_gate", True))'); [ "$g" = True ] && echo "$h"; done | head -n 1)
-[ -n "$box" ] || { echo "no $site-box in the inventory"; exit 1; }
-exec_addr=$(inv "$exech")
+# gated targets = hosts of the site group, minus box and agent, whose msp_gate is not false
+gated() { .venv/bin/ansible-inventory --graph "$site" 2>/dev/null | sed -n 's/^ *|--'"$site"'-\([a-z0-9]*\)$/\1/p' | grep -vx -e box -e agent \
+          | while read -r h; do g=$(.venv/bin/ansible-inventory --host "$site-$h" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("msp_gate", True))'); [ "$g" = True ] && echo "$h"; done; }
+box=$(inv "$site-box"); [ -n "$box" ] || { echo "no $site-box in the inventory"; exit 1; }
+s="ops-$site"
+if [ "$mode" = end ]; then
+  # 1) close every Exec seat (ends the recordings)  2) verify etiquette on the box, which ends its tmux  3) close ours
+  for w in $(tmux list-windows -t "$s" -F '#{window_index}' 2>/dev/null); do tmux send-keys -t "$s:$w.1" exit Enter 2>/dev/null || true; done; sleep 1
+  if ssh -t "llm@$box" msp-end; then tmux kill-session -t "$s" 2>/dev/null; echo "ops $site: session ended"; exit 0; fi
+  echo "ops $site: not ended. Fix the items above in Plan (ops $site TARGET), then run: ops $site end"; exit 1
+fi
+g=$(gated); glist=$(printf '%s\n' "$g" | tr '\n' ' ')
+if [ -z "$target" ]; then
+  if [ "$(printf '%s\n' "$g" | grep -c .)" = 1 ]; then target=$g; else echo "usage: ops $site TARGET   (gated targets here: $glist)"; exit 1; fi
+fi
+printf '%s\n' "$g" | grep -qx "$target" || { echo "ops $site $target: not a gated hypervisor at this site (gated: $glist)"; exit 1; }
+exec_addr=$(inv "$site-$target")
 plan="ssh -t llm@$box"
 exe="ssh -t root@$exec_addr msp-shell"
-if [ "$print" = --print ]; then printf 'plan: %s\nexec: %s (%s)\n' "$plan" "$exe" "$exech"; exit 0; fi
-if [ "$print" = end ]; then
-  # 1) close the Exec seat (ends the recording)  2) verify etiquette on the box, which ends its tmux  3) close ours
-  tmux send-keys -t "ops-$site:0.1" exit Enter 2>/dev/null; sleep 1
-  if ssh -t "llm@$box" msp-end; then tmux kill-session -t "ops-$site" 2>/dev/null; echo "ops $site: session ended"; exit 0; fi
-  echo "ops $site: not ended. Fix the items above in Plan (ops $site), then run: ops $site end"; exit 1
-fi
+if [ "$mode" = --print ]; then printf 'plan: %s\nexec: %s (%s-%s)\n' "$plan" "$exe" "$site" "$target"; exit 0; fi
 if [ -z "${SSH_AUTH_SOCK:-}" ] || ! ssh-add -l >/dev/null 2>&1; then eval "$(ssh-agent -s)" >/dev/null; ssh-add; fi
-s="ops-$site"
 if ! tmux has-session -t "$s" 2>/dev/null; then
-  tmux new-session -d -s "$s" -n "$site" "$plan"
-  tmux split-window -h -t "$s" "$exe"
-  tmux select-pane -t "$s:0.1" -P 'bg=colour52'           # Exec pane: dark red background
+  tmux new-session -d -s "$s" -n "$target" "$plan"
   tmux set-option -t "$s" status-style 'bg=colour88 fg=colour231'
-  tmux set-option -t "$s" status-left " OPS $site   left: PLAN (llm@box)   right: EXEC (root, recorded) "
-  tmux set-option -t "$s" status-left-length 90
-  tmux select-pane -t "$s:0.0"
+  tmux set-option -t "$s" status-left " OPS $site   left: PLAN (llm@box)   right: EXEC (root, recorded)   window = target "
+  tmux set-option -t "$s" status-left-length 100
+elif ! tmux list-windows -t "$s" -F '#{window_name}' | grep -qx "$target"; then
+  tmux new-window -t "$s" -n "$target" "$plan"
 fi
+if [ "$(tmux list-panes -t "$s:$target" | wc -l)" = 1 ]; then       # fresh window, or its Exec seat was closed: reopen it
+  tmux split-window -h -t "$s:$target" "$exe"
+  tmux select-pane -t "$s:$target.1" -P 'bg=colour52'                # Exec pane: dark red background
+  tmux select-pane -t "$s:$target.0"
+fi
+tmux select-window -t "$s:$target"
 exec tmux attach -t "$s"

@@ -8,22 +8,24 @@ other machine, and no way to run a command on a host. You can read this reposito
 by design, and it is enforced by OpenSSH and file permissions, not by this file.
 
 ## How you reach a host: the `msp` command
-`msp HOST VERB [ARGS]` is your only path to a hypervisor (`msp` alone lists the hosts). Reads need no approval:
+{% set ns = namespace(h=[]) %}{% for x in groups['pve_hosts'] if hostvars[x].site == site and (hostvars[x].msp_gate | default(true)) %}{% set ns.h = ns.h + [x | regex_replace('^' ~ site ~ '-', '')] %}{% endfor -%}
+`msp HOST VERB [ARGS]` is your only path to a hypervisor (`msp` alone lists the hosts). HOST at this site:
+{{ ns.h | join(', ') }}. Reads need no approval:
 
-    msp lab status                 msp lab qm-list            msp lab pct-list          msp lab qm-config 100
-    msp lab pct-config 100         msp lab qm-pending 100     msp lab zpool-status      msp lab zfs-list
-    msp lab pvesm-status           msp lab pveversion         msp lab df
-    msp lab journal UNIT [LINES]   (one systemd unit, at most 500 lines)
-    msp lab read-state [NAME]      (the node's check results)      msp lab read-receipts [N]  (what the gate ran)
-    msp lab read-new / read-all    (the redacted recording of the operator's Exec shell)
+    msp HOST status                 msp HOST qm-list            msp HOST pct-list          msp HOST qm-config 100
+    msp HOST pct-config 100         msp HOST qm-pending 100     msp HOST zpool-status      msp HOST zfs-list
+    msp HOST pvesm-status           msp HOST pveversion         msp HOST df
+    msp HOST journal UNIT [LINES]   (one systemd unit, at most 500 lines)
+    msp HOST read-state [NAME]      (the node's check results)      msp HOST read-receipts [N]  (what the gate ran)
+    msp HOST read-new / read-all    (the redacted recording of the operator's Exec shell)
 
 Changes are staged one command at a time, and the operator approves each at the gate, on a machine you cannot see:
 
-    msp lab stage SAFE -- qm start 999
+    msp HOST stage SAFE -- qm start 999
 
 The reply is only `staged: SAFE` or a refusal. Then say what you staged and wait. When the operator has run it,
-read the outcome with `msp lab read-receipts 1` (the receipt has the exact command and `rc:`) and, if needed,
-`msp lab read-new`. Allowed characters in a staged command: letters, digits, space and `. _ : @ / = , + -`.
+read the outcome with `msp HOST read-receipts 1` (the receipt has the exact command and `rc:`) and, if needed,
+`msp HOST read-new`. Allowed characters in a staged command: letters, digits, space and `. _ : @ / = , + -`.
 No quotes, pipes, redirects or `$`. One command; no `&&`. If you need several steps, stage them one at a time and
 read the receipt between them. A refusal is final: do not rephrase to get around a never-list or deny-list match.
 
