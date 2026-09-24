@@ -43,6 +43,8 @@ read the receipt between them. A refusal is final: do not rephrase to get around
    `sessions/` or `memory/`, and do not commit.
 
 ## Every session ends with a note
+When the operator says `end session`, write the note, commit, push, and reply with the commit hash. The operator's
+`msp-end` then verifies a recent note exists and nothing is uncommitted or unpushed before the session closes.
 Write `sessions/YYYY-MM-DD-<slug>.md` quoting the exact log or state lines a finding rests on (never a block of
 recording), then commit and push. Front matter, always:
 

@@ -100,6 +100,10 @@ x su -s /bin/sh -c 'tmux select-window -t msp:scratch; tmux display -p "#{status
 x su -s /bin/sh -c 'tmux select-window -t msp:plan; tmux display -p "#{status-style}"' llm | grep -q colour25; t $? "plan window: blue status bar"
 x su -s /bin/sh -c 'tmux show -gv set-clipboard' llm | grep -q '^on$'; t $? "clipboard forwarding on"
 x su -s /bin/sh -c 'MSP_SCRATCH=1 bash -ic "echo \$PS1"' llm 2>/dev/null | grep -q SCRATCH; t $? "scratch prompt shows [SCRATCH]"
+x su -s /bin/sh -c 'cd /home/llm/fake-origin && msp-end --check' llm 2>&1 | grep -q 'NOT DONE: no session note'; t $? "msp-end refuses without a session note"
+x su -s /bin/sh -c 'cd /home/llm/fake-origin && echo "note" > sessions/2026-09-23-test.md && git add sessions && git commit -q -m note && git push -q && msp-end --check' llm 2>&1 | grep -q 'session complete'; t $? "msp-end passes once the note is committed and pushed"
+x su -s /bin/sh -c 'cd /home/llm/fake-origin && echo x >> README.md && msp-end --check' llm 2>&1 | grep -q 'NOT DONE: uncommitted'; t $? "msp-end refuses with uncommitted changes"
+x su -s /bin/sh -c 'cd /home/llm/fake-origin && git checkout -q -- README.md' llm
 x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
 
 # 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.

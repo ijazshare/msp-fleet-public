@@ -28,7 +28,7 @@
     src: "{{ item }}"
     dest: /usr/local/bin/{{ item }}
     mode: "0755"
-  loop: [msp-tmux, msp-scratch]
+  loop: [msp-tmux, msp-scratch, msp-end]
 
 - name: Scratch needs unshare/setpriv (util-linux) and overlayfs
   ansible.builtin.apt:

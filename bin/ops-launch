@@ -3,7 +3,7 @@
 # right = Exec (root on the site's lab/exec hypervisor inside msp-shell, red). Run as the ops user; `ops SITE` wraps it.
 # Reads the fleet inventory so nothing is typed twice. --print shows the two ssh commands and exits.
 set -eu
-site=${1:?usage: ops SITE [--print]}; shift; print=${1:-}
+site=${1:?usage: ops SITE [--print|end]}; shift; print=${1:-}
 cd "$(dirname "$0")/.."
 inv() { .venv/bin/ansible-inventory --host "$1" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ansible_host",""))'; }
 box=$(inv "$site-box"); exech=$(.venv/bin/ansible-inventory --graph "$site" 2>/dev/null | sed -n 's/^ *|--\('"$site"'-[a-z]*\)$/\1/p' | grep -v -- "-box$\|-agent$" | while read -r h; do g=$(.venv/bin/ansible-inventory --host "$h" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("msp_gate", True))'); [ "$g" = True ] && echo "$h"; done | head -n 1)
@@ -12,6 +12,12 @@ exec_addr=$(inv "$exech")
 plan="ssh -t llm@$box"
 exe="ssh -t root@$exec_addr msp-shell"
 if [ "$print" = --print ]; then printf 'plan: %s\nexec: %s (%s)\n' "$plan" "$exe" "$exech"; exit 0; fi
+if [ "$print" = end ]; then
+  # 1) close the Exec seat (ends the recording)  2) verify etiquette on the box, which ends its tmux  3) close ours
+  tmux send-keys -t "ops-$site:0.1" exit Enter 2>/dev/null; sleep 1
+  if ssh -t "llm@$box" msp-end; then tmux kill-session -t "ops-$site" 2>/dev/null; echo "ops $site: session ended"; exit 0; fi
+  echo "ops $site: not ended. Fix the items above in Plan (ops $site), then run: ops $site end"; exit 1
+fi
 if [ -z "${SSH_AUTH_SOCK:-}" ] || ! ssh-add -l >/dev/null 2>&1; then eval "$(ssh-agent -s)" >/dev/null; ssh-add; fi
 s="ops-$site"
 if ! tmux has-session -t "$s" 2>/dev/null; then
