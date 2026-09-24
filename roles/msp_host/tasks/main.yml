@@ -60,6 +60,14 @@
   environment:
     MSP_RULES: /etc/msp/redact.sed
 
+- name: Operator names for receipts
+  ansible.builtin.template:
+    src: operators.j2
+    dest: /etc/msp/operators
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Never and deny lists
   ansible.builtin.copy:
     dest: /etc/msp/{{ item.name }}
@@ -81,6 +89,21 @@
     - {path: /var/spool/msp/receipts, mode: "0750"}
     - {path: /var/log/msp/rec, mode: "0750"}
     - {path: /run/msp, mode: "0755"}
+
+- name: Agent public keys, read from the site box (works with any -l limit)
+  ansible.builtin.slurp:
+    src: /home/{{ hostvars[msp_box_host].msp_llm_user | default('llm') }}/.ssh/msp_{{ item }}.pub
+  delegate_to: "{{ msp_box_host }}"
+  register: box_pub
+  loop: [interactive, cron]
+  when: msp_box_host != ""
+
+- name: Agent keys as a local fact
+  ansible.builtin.set_fact:
+    msp_agent_pubkeys:
+      interactive: "{{ (box_pub.results[0].content | b64decode).split()[0:2] | join(' ') }}"
+      cron: "{{ (box_pub.results[1].content | b64decode).split()[0:2] | join(' ') }}"
+  when: msp_box_host != ""
 
 - name: Agent keys file (root-owned, outside the agent's home)
   ansible.builtin.template:

@@ -11,3 +11,4 @@ msp_deny_stage:                  # need label DESTRUCTIVE
   - rollback
   - "zfs receive -F"
 msp_root_key_only: false        # true once the ops key is proven on the host: root password login off
+msp_operator_pubkeys: []         # same list as the box: names the human in receipts (from group_vars/<site>.yml)

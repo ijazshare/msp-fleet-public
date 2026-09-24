@@ -143,10 +143,11 @@ h sh -c 'echo "SAFE" > /var/spool/msp/staged; echo "$(date -u +%Y-%m-%dT%H:%M:%S
 o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: staged text'; t $? "tampered spool with shell characters refused at the gate"
 h sh -c 'sshd -T 2>/dev/null | grep -qiE "^permitrootlogin (prohibit-password|without-password)"'; t $? "root password login off on the hypervisor (key only)"
 # recorder + redaction
-h sh -c 'rm -f /run/msp/recording; (echo "echo password=hunter2"; sleep 1; echo exit) | msp-shell >/dev/null 2>&1; sleep 1'
+h sh -c 'rm -f /run/msp/recording; printf "publickey ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n" > /tmp/authinfo; (echo "echo password=hunter2"; sleep 1; echo exit) | SSH_USER_AUTH=/tmp/authinfo msp-shell >/dev/null 2>&1; sleep 1'
 h sh -c 'grep -q "password=<REDACTED>" /var/log/msp/rec/*.clean && ! grep -q hunter2 /var/log/msp/rec/*.clean'; t $? "recording: clean copy redacted, secret absent"
 h sh -c 'grep -q hunter2 /var/log/msp/rec/raw/*.raw'; t $? "recording: raw copy verbatim, root-only ($(h stat -c %a /var/log/msp/rec/raw))"
 h test ! -f /run/msp/recording; t $? "recording ended cleanly"
+h journalctl -t msp-shell --no-pager | grep -q 'started by ops@sandbox'; t $? "the Exec seat names the operator from the ssh key that opened it"
 m read-all | grep -q 'password=<REDACTED>'; t $? "agent reads the redacted recording via read-all"
 # guarantee self-test from the box
 x systemctl start msp-check@guarantee.service

@@ -12,3 +12,7 @@ Match User {{ msp_agent_user }}
     PermitTunnel no
     PasswordAuthentication no
     KbdInteractiveAuthentication no
+
+# The Exec seat: sshd exposes which key opened root's session, so msp-shell can name the approver in receipts.
+Match User root
+    ExposeAuthInfo yes

@@ -6,11 +6,18 @@ d=/var/log/msp/rec; mkdir -p "$d/raw"; chmod 700 "$d/raw"; chmod 750 "$d"; chgrp
 ts=$(date -u +%Y%m%dT%H%M%SZ); raw="$d/raw/$ts.raw"; clean="$d/$ts.clean"
 : > "$clean"; chmod 640 "$clean"; chgrp msp-agent "$clean" 2>/dev/null
 mkdir -p /run/msp; rm -f /run/msp/paused; echo "$ts" > /run/msp/recording
+# who is sitting here: the ssh key that opened this root session, mapped to a name in /etc/msp/operators
+who=${SUDO_USER:-}
+if [ -z "$who" ] && [ -n "${SSH_USER_AUTH:-}" ] && [ -r "$SSH_USER_AUTH" ]; then
+  pub=$(sed -n 's/^publickey //p' "$SSH_USER_AUTH" | head -n 1 | cut -d' ' -f1-2)
+  [ -n "$pub" ] && who=$(grep -F -- "$pub" /etc/msp/operators 2>/dev/null | awk '{print $3; exit}')
+fi
+who=${who:-root}; echo "$who" > /run/msp/approver
 tail -n +1 -F "$raw" 2>/dev/null | /usr/local/bin/msp-redact > "$clean" &
 echo $! > /run/msp/redact.pid
-logger -t msp-shell "recording $ts started by ${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
+logger -t msp-shell "recording $ts started by $who"
 printf '\033[1;31m[EXEC] recording %s. step = approve staged command, pending, pause, resume. exit ends the recording.\033[0m\n' "$ts"
 script -q -f -c "bash --rcfile /usr/local/share/msp/exec.bashrc" "$raw"
 sleep 1; kill "$(cat /run/msp/redact.pid)" 2>/dev/null; pkill -f "tail -n \+1 -F $raw" 2>/dev/null
-rm -f /run/msp/recording /run/msp/paused /run/msp/redact.pid
+rm -f /run/msp/recording /run/msp/paused /run/msp/redact.pid /run/msp/approver
 logger -t msp-shell "recording $ts ended"

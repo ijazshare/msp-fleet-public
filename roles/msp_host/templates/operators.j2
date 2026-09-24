@@ -1,0 +1,4 @@
+# {{ ansible_managed }}. Operator public keys and the name written into receipts and the journal.
+{% for k in msp_operator_pubkeys %}
+{{ k.split()[0] }} {{ k.split()[1] }} {{ k.split()[2] if k.split()|length > 2 else 'operator' }}
+{% endfor %}
