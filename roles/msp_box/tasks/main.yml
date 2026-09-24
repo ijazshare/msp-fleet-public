@@ -99,6 +99,14 @@
       interactive: "{{ (agent_pub.results[0].content | b64decode).split()[0:2] | join(' ') }}"
       cron: "{{ (agent_pub.results[1].content | b64decode).split()[0:2] | join(' ') }}"
 
+- name: What the nightly guarantee check probes with (sourced by root; before hosts.conf, so a timer firing mid-deploy sees no hosts, not a missing conf)
+  ansible.builtin.template:
+    src: guarantee.conf.j2
+    dest: /etc/msp/guarantee.conf
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Hypervisor address book for the msp wrapper
   ansible.builtin.template:
     src: hosts.conf.j2

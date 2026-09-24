@@ -1,0 +1,22 @@
+#!/bin/sh
+# fakepve: stand-in for qm, pct, zfs, pvesh, proxmox-backup-manager and friends (dispatch on the name it is
+# called by), so test.sh can plant guests on the PVE-less sandbox hypervisor. 100 = keep, 97531/97532 = hidden.
+case ${0##*/} in
+  qm)  case ${1:-} in
+         list) printf '      VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID\n       100 keep                 running    2048              32.00 11\n     97531 hide-vm              running    2048              32.00 12\n';;
+         config|pending) [ "$2" = 100 ] && echo 'name: keep' || echo 'name: hide-vm';;
+       esac;;
+  pct) case ${1:-} in
+         list) printf 'VMID       Status     Lock         Name\n97532      running                 hide-ct\n';;
+         config) echo 'hostname: hide-ct';;
+       esac;;
+  zfs) printf 'NAME USED AVAIL REFER MOUNTPOINT\nrpool/data/vm-100-disk-0 1G 1G 1G -\nrpool/data/vm-97531-disk-0 1G 1G 1G -\nrpool/data/subvol-97532-disk-0 1G 1G 1G /rpool/data/subvol-97532-disk-0\n';;
+  pvesh) printf '[{"id":"100","type":"vzdump","upid":"UPID:sb:1:1:1:vzdump:100:root@pam:"},{"id":"97531","type":"qmstart","upid":"UPID:sb:2:2:2:qmstart:97531:root@pam:"},{"id":"97532","type":"vzstart","upid":"UPID:sb:3:3:3:vzstart:97532:root@pam:"},{"id":"","type":"aptupdate","upid":"UPID:sb:4:4:4:aptupdate::root@pam:"}]';;
+  proxmox-backup-manager) case "${1:-} ${2:-}" in
+         "task list") printf '[{"worker_id":"store:vm/100","upid":"a"},{"worker_id":"store:vm/97531","upid":"b"},{"worker_id":"store:ct/97532/2026-09-01T00:00:00Z","upid":"c"}]';;
+         "datastore list") echo '[{"name":"store"}]';;
+         "datastore show") echo '{"path":"/tmp"}';;
+         "snapshot list") printf 'vm/100/2026-09-01T00:00:00Z\nvm/97531/2026-09-01T00:00:00Z\nct/97532/2026-09-01T00:00:00Z\n';;
+       esac;;
+  *) echo "${0##*/} 9.0";;
+esac

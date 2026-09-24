@@ -4,21 +4,28 @@
 set -u
 refuse() { echo "refused: $1"; exit 2; }
 verb=${1:-}; shift || true
-vmid() { case ${1:-} in ''|*[!0-9]*) refuse "vmid must be digits";; esac; }
+# guests.exclude (msp_checks writes it here too): those guests are never listed or read. Unparseable = fail closed.
+excl=$(grep -v '^[[:space:]]*#' /etc/msp/baseline.conf 2>/dev/null | sed -n 's/^[[:space:]]*guests\.exclude[[:space:]]*=[[:space:]]*//p' | tail -n 1)
+case $excl in *[!0-9\ ]*) excl=BAD;; esac
+vmid() { case ${1:-} in ''|0*|*[!0-9]*) refuse "vmid must be digits";; esac
+         [ "$excl" = BAD ] && refuse "guests.exclude unreadable"; for e in $excl; do [ "$e" = "$1" ] && refuse "vmid excluded at this site"; done; }
+hide() { [ "$excl" = BAD ] && { echo "refused: guests.exclude unreadable"; return; }   # drop excluded rows and zvol/subvol lines
+         awk -v ex="$excl" 'BEGIN{n=split(ex,a," ");for(i=1;i<=n;i++)x[a[i]]=1} $1 in x{next} {for(i in x) if ($0 ~ "(vm|subvol|base)-" i "-") next; print}'; }
 have() { command -v "$1" >/dev/null 2>&1 || { echo "not available on this host: $1"; exit 0; }; }
 red() { sed -u -E -f /etc/msp/redact.sed; }
 case $verb in
   status)        { hostname; uptime; } | red ;;
-  qm-list)       have qm;  qm list | red ;;
-  pct-list)      have pct; pct list | red ;;
+  qm-list)       have qm;  qm list | hide | red ;;
+  pct-list)      have pct; pct list | hide | red ;;
   qm-config)     vmid "${1:-}"; have qm;  qm config "$1" | red ;;
   qm-pending)    vmid "${1:-}"; have qm;  qm pending "$1" | red ;;
   pct-config)    vmid "${1:-}"; have pct; pct config "$1" | red ;;
   zpool-status)  have zpool; zpool status | red ;;
-  zfs-list)      have zfs; zfs list -o name,used,avail,refer,mountpoint,mounted | red ;;
+  zfs-list)      have zfs; zfs list -o name,used,avail,refer,mountpoint,mounted | hide | red ;;
   pvesm-status)  have pvesm; pvesm status | red ;;
   pveversion)    have pveversion; pveversion -v | red ;;
   df)            df -P -l -x tmpfs -x devtmpfs -x overlay | red ;;
+  # ponytail: journal, read-all/read-new and read-receipts are free text and not filtered for excluded guests
   journal)       unit=${1:-}; n=${2:-100}
                  case $unit in ''|*[!A-Za-z0-9@._-]*) refuse "unit name";; esac
                  case $n in ''|*[!0-9]*) refuse "line count";; esac; [ "$n" -le 500 ] || n=500

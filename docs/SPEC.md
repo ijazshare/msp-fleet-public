@@ -2,6 +2,8 @@
 
 Version 3 draft, 2026-09-19. Written to replace the two earlier builds (v1 `gax` at the tax office, v2 `QCAP` on the SITE) with one design that is built once, deployed identically at every site, and safe against a wrong or hallucinating model.
 
+**As built (2026-09-24).** The AI does not run in an LXC "agent CT" on the hypervisor. Each site has a dedicated plain-Debian **site box** (role `msp_box`) where the AI tools, the client repository and the AI's keys live, as the unprivileged `llm` user with no sudo. Each gated hypervisor gets `msp_host` (account `msp-agent`, dispatcher, gate, recorded shell), and every node, box included, gets `msp_checks` (systemd timers, Healthchecks pings). `agent_cts` in the inventory is not targeted by any playbook. The sections below are written for that design; where the September 19 draft said otherwise it has been corrected in place, and the reasoning that carried over is kept. The README and the roles are authoritative if this file and they ever disagree.
+
 For every decision below: the chosen option comes first with the reasons, then the alternatives and why they lost. Where a decision is still yours, it says so.
 
 ---
@@ -43,11 +45,11 @@ Must not:
 
 ## 4. Architecture decisions
 
-### D1. Where the AI runs: a small container next to each PVE host
+### D1. Where the AI runs: a dedicated site box at each site
 
-**Chosen: one unprivileged LXC container ("agent CT") per site, on that site's PVE host.** The AI tools, the client's documentation repository, and the AI's own keys live there and nowhere else.
+**Chosen: one plain-Debian machine per site, the site box, where the AI runs as `llm` with no sudo.** The AI tools, the client's documentation repository, and the AI's own keys live there and nowhere else. Root on the box is Ansible's (from `ops`); root on a hypervisor is never reachable from the box. (The September 19 draft put this in an unprivileged LXC "agent CT" on the PVE host; that was not built.)
 
-Why: the blast radius of a bad session is one client. Cron diagnostics keep running when your VPN is down and report outbound. A container on the client's own hypervisor never mixes one client's data with another's, which matters for any client with a compliance obligation. The container is rebuilt from a template by the deployment, so it is cheap to throw away.
+Why: the blast radius of a bad session is one client. Scheduled checks keep running when your VPN is down and report outbound. A box at the client's own site never mixes one client's data with another's, which matters for any client with a compliance obligation. The box is rebuilt by the deployment and its memory lives in the client repository, so it is cheap to throw away.
 
 Alternatives:
 
@@ -57,7 +59,7 @@ Alternatives:
 
 ### D2. How the AI reaches the host: SSH with a forced command
 
-**Chosen: the agent CT holds one SSH key for a dedicated unprivileged account on the PVE host. The host's SSH server is configured so that account can only ever run one program, the dispatcher, no matter what the client asks for.** The dispatcher accepts a short list of verbs and nothing else.
+**Chosen: the site box holds the SSH keys for a dedicated unprivileged account, `msp-agent`, on each gated PVE host. The host's SSH server is configured so that account can only ever run one program, the dispatcher, no matter what the client asks for.** The dispatcher accepts a short list of verbs and nothing else.
 
 Why: the restriction is enforced by OpenSSH on the host side, in a file the AI account cannot edit, and it is model-agnostic. It survives a tool that ignores every rule in its instructions file. There is no shell, no port forwarding, no file transfer.
 
@@ -120,22 +122,22 @@ Alternatives:
 
 ### D6. Documentation: the repository is the memory
 
-**Chosen: one Git repository per client, cloned on that client's agent CT, with this layout:** `AGENTS.md` (the AI's operating contract, with the tool-specific filenames like `CLAUDE.md` linked to it), `sessions/` (one note per session, human or scheduled), `state/` (dated snapshots of host state from the read verbs), `runbooks/`, and `memory/` (whatever the AI tools keep as memory, linked from their home directories into the repository).
+**Chosen: one Git repository per client, cloned on that client's site box, with this layout:** `AGENTS.md` (the AI's operating contract, with the tool-specific filenames like `CLAUDE.md` linked to it), `sessions/` (one note per session, human or scheduled), `state/` (dated snapshots of host state from the read verbs), `runbooks/`, and `memory/` (whatever the AI tools keep as memory, linked from their home directories into the repository).
 
 Every interactive session ends with the AI writing a note quoting the log, then committing and pushing. Every scheduled run writes one too. Remotes are per client: the tax office pushes to a local Git server that mirrors to a private GitHub repository; the SITE pushes straight to GitHub. The tool does not care.
 
-Why: this is the deliverable you named first. Putting memory in the repository is what makes an agent CT disposable; a rebuild followed by a clone restores everything the AI knew.
+Why: this is the deliverable you named first. Putting memory in the repository is what makes the site box disposable; a rebuild followed by a clone restores everything the AI knew.
 
 Alternatives:
 
-- *Notes and memory in the container's home directory.* Rejected; it is what you are about to lose when the old CT is retired.
+- *Notes and memory in the box's home directory.* Rejected; it is what you lose when the box is rebuilt (and what was lost when the old CT was retired).
 - *Committing the raw captures.* Rejected; they contain everything typed, including whatever the filter missed. Notes quote the specific line a finding rests on, never a block of capture.
 
 ### D7. Scheduled diagnostics and notifications
 
-**Chosen: a systemd timer on the agent CT runs a plain script every night.** The script calls the read verbs, produces a small structured report, and diffs it against the previous night. Only when something changed, or once a week for a summary, does it call the AI tool in non-interactive mode to write the session note. The note is pushed, and a notification goes out with a link to it.
+**Chosen (as built): deterministic checks as systemd timers on every node, box and hypervisors alike (`msp-check@<name>.timer`, role `msp_checks`).** Each check compares the node with its expected state in `/etc/msp/baseline.conf`, writes a state file, and pings Healthchecks; a change is a finding, and a check that breaks pages on its own. `configdump` keeps a root-only git history of the node's configuration as the drift detector. The timers do not call the AI; the agent reads the state files through the `read-state` verb. (The draft had a nightly script that called the AI tool on change and pushed a note, notified through ntfy; neither was built.)
 
-Notification service: **ntfy**, either self-hosted or the public service with a private topic. It is push-only, free, needs no account for the sender, and works on your phone.
+Notification service: **Healthchecks** pings, outbound only.
 
 Why: deterministic checks first because they are cheap, do not hallucinate, and produce the diff the AI needs. Calling the model only on change keeps cost and noise down and stops the nightly "all good" that nobody reads. Outbound-only notifications mean the site needs no inbound path.
 
@@ -149,9 +151,9 @@ Alternatives:
 
 **Chosen: an Ansible repository on your laptop describes every site. One command builds or repairs a site.** Ansible is a checklist runner: it connects over SSH as root, compares each host to the checklist, and changes only what differs. Run it twice and the second run changes nothing. That property is what ends drift.
 
-The checklist has three parts: the host side (accounts, SSH restriction, dispatcher, gate, redaction rules, log rotation, creation of the agent CT from a clean Debian template), the container side (the `llm` user, tmux, the AI tools, key generation, the repository clone, the contract file and its links), and a verification pass that exercises the forced command, a harmless staged command, and the redaction tests, and reports pass or fail.
+The checklist (`playbooks/site.yml`) has four parts: the checks on every node (`msp_checks`), the host side (`msp_host`: the `msp-agent` account, SSH restriction, dispatcher, gate, redaction rules, recording retention), the box side (`msp_box` and `msp_tools`: the `llm` user, tmux, the AI tools, key generation, the repository clone, the contract file and its links), and the box learning each gated hypervisor's real host key. The redaction fixture test runs on every host before anything is recorded, and the nightly `guarantee` check re-proves the forced command, the cron key's refusal to stage and the never-list from the box.
 
-The container is created by the host-side part with your laptop's ops key already inside, so there is no bootstrap step for containers at all. The only manual bootstrap is, once per PVE host, adding the ops key to root's authorized keys through the Proxmox web shell.
+The site box is a plain Debian install with the ops key in root's authorized keys; the playbook does the rest. The other manual bootstrap is, once per PVE host, adding the ops key to root's authorized keys through the Proxmox web shell.
 
 Alternatives:
 
@@ -171,7 +173,7 @@ Alternatives:
 
 ### D10. Testing without touching real hosts
 
-**Chosen: a disposable container on the SITE as a sandbox, with its own throwaway key that is authorized nowhere else.** I can hold that key, because it opens nothing that matters. The host-side checklist minus the container-creation step, and the container-side checklist in full, are exercised there before they ever run against a real host. A run log lands in the fleet repository so I can read what happened without any access of my own.
+**Chosen (as built): two throwaway Docker containers on the laptop, one standing in for the site box and one for a hypervisor (`sandbox/`).** They open nothing that matters. `sh sandbox/prove.sh` starts them fresh, applies `site.yml` twice (the second run must change nothing) and runs `sandbox/test.sh`; every playbook change passes there before it ever runs against a real host. (The draft had one disposable container on the SITE.)
 
 Alternatives:
 
@@ -180,20 +182,20 @@ Alternatives:
 
 ### D11. Connectivity: an overlay network
 
-**Chosen: Tailscale, or Headscale if you want the control plane self-hosted, on the laptop, every agent CT, and every PVE host.** Access rules limit the laptop to those two hosts on the SSH and web ports. Every site is addressed by name.
+**Chosen: Tailscale, or Headscale if you want the control plane self-hosted, on the laptop, every site box, and every PVE host.** Access rules limit the laptop to those two hosts on the SSH and web ports. Every site is addressed by name.
 
 Why: it removes the "which VPN am I on" step from the launcher, it makes overlapping client subnets irrelevant, and the same overlay carries Ansible to every site.
 
 Alternatives:
 
 - *Per-site WireGuard profiles.* Works. Keep the allowed addresses to the two hosts rather than the whole subnet, or overlapping LANs will bite. Fine if you dislike a third-party control plane.
-- *The AI starting a VPN to the site.* Rejected. In the per-site design the AI never needs one, and it would mean the agent CT holding VPN credentials.
+- *The AI starting a VPN to the site.* Rejected. In the per-site design the AI never needs one, and it would mean the site box holding VPN credentials.
 
 ### D12. Your terminal, tmux, and the clipboard
 
 **Chosen: tmux on the remote side always, started by the launcher, and a terminal on the laptop that passes OSC 52 clipboard writes.** WezTerm first choice; Kitty second. GNOME Terminal has historically dropped OSC 52, which is why copying out of a tmux session over SSH fails today. Test it with the one-liner in your v1 notes; if it fails, switch.
 
-The launcher, `ops <site>`, opens one tmux window with two panes: the agent CT on the left with the AI tool already in the project directory, root on the PVE on the right with the recorder started. Logging in to the agent CT as `llm` attaches tmux automatically, so you cannot forget. `qcap on` warns if it is not inside tmux.
+The launcher, `ops <site>` (`bin/ops-launch`), opens one tmux window with two panes: Plan on the left (`llm` on the site box; logging in attaches the `msp-tmux` session automatically) and Exec on the right (root on the site's gated hypervisor inside `msp-shell`). Opening the Exec seat is what starts the recorder; there is no separate switch to forget.
 
 Alternatives:
 
@@ -211,26 +213,25 @@ Alternatives:
 | Laptop | your login | you, AI sessions | none on any host |
 | Laptop | `ops` | you only, for deployments | master key to every PVE root |
 | PVE host | `root` | you (from `ops`), Ansible | everything |
-| PVE host | `pve-agent` | the AI over SSH | forced command only; one sudo line for the read helper |
-| Agent CT | `root` | Ansible only | everything on the CT, nothing beyond it |
-| Agent CT | `llm` | the AI tools, you when driving them | no sudo, no password |
+| PVE host | `msp-agent` | the AI over SSH | forced command only; one sudo line for the read helper |
+| Site box | `root` | Ansible only (from `ops`); the checks' timers | everything on the box, nothing beyond it |
+| Site box | `llm` | the AI tools, you when driving them | no sudo, no password |
 
 ### Keys
 
 | Key | Lives | Opens | Made by |
 |---|---|---|---|
-| ops master key | laptop, `/home/ops/.ssh`, passphrase | root on every PVE host and every agent CT | bootstrap script |
-| agent interactive key | agent CT, `llm` home | `pve-agent` on that site's PVE, forced command | deployment |
-| agent cron key | agent CT, `llm` home | same account, marked read-only in the key file | deployment |
-| notebook deploy key | agent CT, `llm` home | push to that client's repository | deployment; you add the public half on GitHub once |
-| sandbox key | laptop, your login | root on the throwaway sandbox only | me |
-| tool sign-in state | agent CT, `llm` home | your Claude / Google account | you, once per CT |
+| ops master key | laptop, `/home/ops/.ssh`, passphrase | root on every PVE host and every site box | bootstrap script |
+| agent interactive key | site box, `llm` home (`msp_interactive`) | `msp-agent` on that site's gated PVE hosts, forced command | deployment |
+| agent cron key | site box, `llm` home (`msp_cron`) | same account, `role=cron` in the key file: cannot stage | deployment |
+| notebook deploy key | site box, `llm` home | push to that client's repository | deployment; you add the public half on GitHub once |
+| tool sign-in state | site box, `llm` home | your Claude / Google account | you, once per box |
 
 No password is ever shared or typed into any script.
 
 ### Host side files
 
-`/usr/local/sbin/qcap` (recorder and gate), `/usr/local/bin/qcap-dispatch` (the forced command), `/usr/local/sbin/qcap-readverb` (the root helper the read verbs call), `/usr/local/share/qcap/` (filter, shell rc), `/etc/qcap/qcap.conf` and `/etc/qcap/redact-rules.conf` (per-site values from the fleet repository), `/etc/ssh/sshd_config.d/60-qcap.conf`, `/etc/ssh/qcap_keys/pve-agent`, `/etc/sudoers.d/qcap`, `/etc/logrotate.d/qcap`, `/var/spool/qcap/` (staged commands), `/var/log/qcap/` (clean captures, agent-readable) and `/var/log/qcap/raw/` (verbatim, root only, rotated and shredded).
+`/usr/local/bin/msp-dispatch` (the forced command), `/usr/local/bin/msp-stage` (writes the one pending command), `/usr/local/sbin/msp-gate` (the gate), `/usr/local/sbin/msp-shell` (the recorded Exec shell), `/usr/local/bin/msp-rec` (pause and resume), `/usr/local/bin/msp-redact` (the filter), `/usr/local/sbin/msp-readverb` (the root helper the read verbs call), `/usr/local/share/msp/` (Exec shell rc, redaction fixture test), `/etc/msp/redact.sed`, `/etc/msp/never.list`, `/etc/msp/deny.list` and `/etc/msp/operators` (per-site values from the fleet repository), `/etc/ssh/sshd_config.d/60-msp.conf` (plus `61-msp-root.conf` once root is key-only), `/etc/ssh/msp_keys/msp-agent`, `/etc/sudoers.d/msp`, `/etc/tmpfiles.d/msp-rec.conf`, `/var/spool/msp/` (the staged command and `receipts/`), `/var/log/msp/rec/` (clean recordings, agent-readable, kept) and `/var/log/msp/rec/raw/` (verbatim, root only, deleted after 90 days by the tmpfiles age rule).
 
 ### Contract file contents
 
@@ -253,10 +254,10 @@ Once per PVE host, in a browser:
 
 Per site, as `ops` on the laptop:
 
-4. Add the site to the inventory (two names, two addresses) and a small variables file for anything client-specific.
-5. Run the site playbook. It configures the host, creates the container, configures the container, registers the container's keys on the host, and runs the verification pass. It prints the notebook deploy key at the end.
+4. Install plain Debian on the site box with the ops key in root's authorized keys. Add the site to the inventory (the box and its hypervisors) and `group_vars/<site>.yml` for anything client-specific.
+5. Run the site playbook. It installs the checks everywhere, configures the box, configures each gated hypervisor, registers the box's agent keys on it, and teaches the box the hypervisors' host keys. It prints the notebook deploy key.
 6. Add the deploy key to the client's repository on GitHub. Run the playbook again; it clones the repository and finishes.
-7. Log in to the container as `llm` once and sign in to each AI tool.
+7. Log in to the box as `llm` once and sign in to each AI tool.
 
 Then: `ops <site>` from the laptop, and work. To repair drift or roll out a change, run step 5 again; it changes only what differs.
 
@@ -270,20 +271,20 @@ Scheduled: nothing to do. Read the notification when one arrives; it links to th
 
 Incident: the notification tells you what changed. Open the session; the AI already has the diff and the relevant read output, and can stage the first diagnostic or fix for your approval.
 
-New site: steps 3 to 7 above. Under an hour, most of it waiting for the container to build.
+New site: steps 3 to 7 above. Under an hour, most of it the Debian install on the box.
 
-Offboarding: delete the container, remove the deploy key, remove the sshd Match block and the accounts with the offboarding playbook, archive the repository.
+Offboarding: wipe the site box, remove the deploy key, remove the sshd Match block and the accounts with the offboarding playbook, archive the repository.
 
 ## 8. What this does and does not protect against
 
-Protects against: the AI running anything on the host without a human reading it; the AI reading anything you did not intend (within the labelled-pause discipline); one client's session reaching another client; a lost or stolen agent container exposing a root credential; a scheduled job queuing a change; drift between sites; you forgetting tmux.
+Protects against: the AI running anything on the host without a human reading it; the AI reading anything you did not intend (within the labelled-pause discipline); one client's session reaching another client; a lost or stolen site box exposing a root credential; a scheduled job queuing a change; drift between sites; you forgetting tmux.
 
-Does not protect against: a human approving a bad command they did not read; secrets shown in a recorded shell that the filter did not recognise, which is why the pause discipline exists; whatever you have decided may leave the host reaching the model vendor, which is a per-client decision recorded in the contract file; compromise of your laptop's `ops` login, which is why the tax office should move that key onto hardware; misuse of the signed-in AI account from a compromised container, which is why the container accepts inbound connections only from the overlay.
+Does not protect against: a human approving a bad command they did not read; secrets shown in a recorded shell that the filter did not recognise, which is why the pause discipline exists; whatever you have decided may leave the host reaching the model vendor, which is a per-client decision recorded in the contract file; compromise of your laptop's `ops` login, which is why the tax office should move that key onto hardware; misuse of the signed-in AI account from a compromised site box, which is why the box accepts inbound connections only from the overlay.
 
 ## 9. Still yours to decide
 
 - D9 now: the `ops` user today, or straight to a hardware key.
-- D10: sandbox as a container on the SITE, or a local VM on the laptop.
+- D10: decided, Docker containers on the laptop (`sandbox/`).
 - D7: ntfy self-hosted, ntfy public with a private topic, or Pushover.
 - D11: Tailscale, Headscale, or keep WireGuard profiles.
 - The never-stage list for each client.
@@ -293,6 +294,7 @@ Does not protect against: a human approving a bad command they did not read; sec
 - **SSH**: the encrypted remote-login protocol every step uses. A **key** is a file pair; the public half is placed on a server, the private half stays where it was made.
 - **Forced command**: an SSH server setting that runs one fixed program for a given account, ignoring what the client asked to run.
 - **CT / LXC**: a lightweight container on a Proxmox host, like a small VM without its own kernel.
+- **Site box**: the dedicated Debian machine at a site where the AI runs as `llm`; it holds the keys for `msp-agent` on that site's hypervisors and nothing that opens root.
 - **Ansible**: a tool that applies a written checklist to servers over SSH. A **playbook** is the checklist; a **role** is a reusable chapter; the **inventory** is the address book.
 - **tmux**: a program that keeps a terminal session alive on the server so a dropped connection does not end it.
 - **OSC 52**: a terminal feature that lets a remote program write to your local clipboard.

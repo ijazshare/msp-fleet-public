@@ -59,13 +59,9 @@ command -v pveversion >/dev/null && c pveversion pveversion -v
 command -v proxmox-boot-tool >/dev/null && c proxmox-boot-tool proxmox-boot-tool status
 command -v zpool >/dev/null && { c zpool-status zpool status; c zpool-get-local zpool get -H -s local all; c zfs-get-local zfs get -H -s local,received all; c zfs-arc-max cat /sys/module/zfs/parameters/zfs_arc_max; }
 command -v proxmox-backup-manager >/dev/null && { c pbs-versions proxmox-backup-manager versions --verbose; c pbs-datastores proxmox-backup-manager datastore list; c pbs-cert proxmox-backup-manager cert info; }
-if command -v sqlite3 >/dev/null && [ -r /var/lib/pve-cluster/config.db ]; then
-  sqlite3 /var/lib/pve-cluster/config.db .dump > "$D/cmd/pve-config.db.sql" 2>/dev/null
-else
-  echo "sqlite3 not installed or no config.db; /etc/pve files above are the readable copy" > "$D/cmd/pve-config.db.sql"
-fi
-# strip volatile lines so they do not read as drift
+# strip volatile lines so they do not read as drift, and excluded guests' zvol/subvol dataset lines
 sed -i '/^smartctl\|^Copyright/d' "$D"/cmd/* 2>/dev/null
+for e in $excl; do case $e in *[!0-9]*) continue;; esac; sed -i -E "/(vm|subvol|base)-$e-/d" "$D"/cmd/* 2>/dev/null; done
 
 git add -A . >/dev/null 2>&1
 if [ -z "$(git status --porcelain)" ]; then echo "unchanged"; exit 0; fi

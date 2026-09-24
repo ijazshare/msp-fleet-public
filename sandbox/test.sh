@@ -71,14 +71,18 @@ x systemctl start msp-check@configdump.service
 x grep -q '^rc=1' /var/lib/msp/state/configdump.state && x grep -q 'etc/hosts' /var/lib/msp/state/configdump.state; t $? "edit -> WARN naming the file: $(x sed -n 's/^msg=//p' /var/lib/msp/state/configdump.state)"
 x grep -q '^POST /hc-configdump WARN config changed' /var/log/msp/hc-fake.log; t $? "drift rides a plain ping with the message, did not page"
 c1=$(x git -C /var/lib/msp/dump log --oneline | wc -l); [ "$c1" = "$((c0+1))" ]; t $? "edit produced exactly one dump commit ($c0 -> $c1)"
-x sh -c 'test ! -e /var/lib/msp/dump/etc/pve/priv && test -z "$(find /var/lib/msp/dump -name "*.key")"'; t $? "no priv/ or *.key in the dump"
+x sh -c 'test ! -e /var/lib/msp/dump/etc/pve/priv && test -z "$(find /var/lib/msp/dump -name "*.key")" && ! grep -rq "priv/" /var/lib/msp/dump/cmd && test ! -e /var/lib/msp/dump/cmd/pve-config.db.sql'; t $? "no priv/ or *.key in the dump, no config.db copy, no cmd output names priv/"
 x stat -c %a /var/lib/msp/dump | grep -q '^700$'; t $? "dump dir is root-only (0700)"
 d=$(x systemctl show msp-check@configdump.timer -p TimersMonotonic --value | grep -o 'OnUnitActiveUSec=[^ ;]*' | tr '\n' ' '); [ "$d" = "OnUnitActiveUSec=6h " ]; t $? "configdump interval override replaces default ($d)"
 
 # 9b guests.exclude: excluded guest config never lands in the dump
-x sh -c 'mkdir -p /etc/pve/nodes/sb/qemu-server /etc/pve/nodes/sb/lxc; echo "name: keep" > /etc/pve/nodes/sb/qemu-server/100.conf; echo "name: hide" > /etc/pve/nodes/sb/qemu-server/130.conf; echo "guests.exclude = 130" >> /etc/msp/baseline.conf'
+x sh -c 'mkdir -p /etc/pve/nodes/sb/qemu-server /etc/pve/nodes/sb/lxc; echo "name: keep" > /etc/pve/nodes/sb/qemu-server/100.conf; echo "name: hide" > /etc/pve/nodes/sb/qemu-server/901.conf; echo "guests.exclude = 901" >> /etc/msp/baseline.conf'
 x systemctl start msp-check@configdump.service
-x sh -c 'test -e /var/lib/msp/dump/etc/pve/guests/100.conf && test ! -e /var/lib/msp/dump/etc/pve/guests/130.conf'; t $? "excluded guest 130 absent from dump, 100 present"
+x sh -c 'test -e /var/lib/msp/dump/etc/pve/guests/100.conf && test ! -e /var/lib/msp/dump/etc/pve/guests/901.conf'; t $? "excluded guest 901 absent from dump, 100 present"
+docker cp sandbox/fakepve msp-sandbox:/usr/local/bin/fakepve >/dev/null
+x sh -c 'ln -s fakepve /usr/local/bin/zfs; ln -s fakepve /usr/local/bin/zpool; echo "guests.exclude = 901 97531 97532" >> /etc/msp/baseline.conf; systemctl start msp-check@configdump.service'
+x sh -c 'grep -q vm-100-disk /var/lib/msp/dump/cmd/zfs-get-local && ! grep -rqE "9753[12]" /var/lib/msp/dump/cmd'; t $? "excluded guests' datasets absent from dump command output, 100 present"
+x sh -c 'rm -f /usr/local/bin/zfs /usr/local/bin/zpool /usr/local/bin/fakepve'
 x rm -rf /etc/pve
 
 # 11 msp_box: llm user, no sudo, launcher, repo, rules file, memory in repo, scratch tmpfs
@@ -104,6 +108,8 @@ x su -s /bin/sh -c 'cd /home/llm/fake-origin && msp-end --check' llm 2>&1 | grep
 x su -s /bin/sh -c 'cd /home/llm/fake-origin && echo "note" > sessions/2026-09-23-test.md && git add sessions && git commit -q -m note && git push -q && msp-end --check' llm 2>&1 | grep -q 'session complete'; t $? "msp-end passes once the note is committed and pushed"
 x su -s /bin/sh -c 'cd /home/llm/fake-origin && echo x >> README.md && msp-end --check' llm 2>&1 | grep -q 'NOT DONE: uncommitted'; t $? "msp-end refuses with uncommitted changes"
 x su -s /bin/sh -c 'cd /home/llm/fake-origin && git checkout -q -- README.md' llm
+x su -s /bin/sh -c 'cd "$(cat ~/.msp-repo)" && b=$(git symbolic-ref --short HEAD) && { git branch -q -D msp-noupstream 2>/dev/null; true; } && git checkout -q -b msp-noupstream && msp-end --check; git checkout -q "$b" && git branch -q -D msp-noupstream' llm 2>&1 | grep -q 'no upstream'; t $? "msp-end refuses a branch that was never pushed"
+x su -s /bin/sh -c 'cd "$(cat ~/.msp-repo)" && test -z "$(git status --porcelain)" && ! git rev-parse -q --verify msp-noupstream >/dev/null && msp-end --check' llm 2>&1 | grep -q 'session complete'; t $? "and the repo is left as found"
 x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
 
 # 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.
@@ -121,6 +127,25 @@ x su -s /bin/sh -c 'ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -i /home/ll
 m 'status; id' | grep -q 'refused: characters'; t $? "shell metacharacters refused"
 m 'journal ssh 5' | grep -qv refused; t $? "journal verb with unit and cap works"
 m 'qm-config abc' | grep -q 'refused: vmid'; t $? "read helper validates arguments"
+# guests.exclude on the hypervisor: the read verbs never list or read an excluded guest (fake qm/pct/zfs)
+docker cp sandbox/fakepve msp-sandbox-host:/usr/local/bin/fakepve >/dev/null
+h sh -c 'cp /etc/msp/baseline.conf /tmp/bl.bak; echo "guests.exclude = 97531 97532" >> /etc/msp/baseline.conf; for n in qm pct zfs; do ln -sf fakepve /usr/local/bin/$n; done'
+o=$(m qm-list; m pct-list; m zfs-list); echo "$o" | grep -q 'keep' && echo "$o" | grep -q vm-100-disk && ! echo "$o" | grep -qE 'hide-|9753[12]'; t $? "qm-list/pct-list/zfs-list: excluded guests absent, 100 present"
+m 'qm-config 97531' | grep -q 'refused: vmid excluded' && m 'pct-config 97532' | grep -q 'refused: vmid excluded' && m 'qm-pending 97531' | grep -q 'refused: vmid excluded'; t $? "qm-config/pct-config/qm-pending of an excluded guest refused"
+m 'qm-config 100' | grep -q 'name: keep' && m 'qm-config 097531' | grep -q 'refused: vmid must'; t $? "qm-config of a kept guest works; leading-zero VMID refused"
+h sh -c 'echo "guests.exclude = 97531 x" >> /etc/msp/baseline.conf'; o=$(m qm-list; m 'qm-config 100'); [ "$(echo "$o" | grep -c 'guests.exclude unreadable')" = 2 ] && ! echo "$o" | grep -qE 'hide-|keep'; t $? "unparseable guests.exclude fails closed"
+h sh -c 'cp /tmp/bl.bak /etc/msp/baseline.conf; rm -f /usr/local/bin/qm /usr/local/bin/pct /usr/local/bin/zfs'
+# capture-fixtures.sh with MSP_EXCLUDE: no output file names an excluded guest; kept guest still captured
+docker cp bin/capture-fixtures.sh msp-sandbox-host:/root/capture-fixtures.sh >/dev/null   # not /tmp: a tmpfs docker cp cannot see
+h sh -c 'rm -rf /tmp/msp-fixtures-* /tmp/fp; mkdir -p /tmp/fp /etc/pve/nodes/sb/qemu-server; for n in qm pct zfs zpool pvesh pveversion pvesm proxmox-backup-manager; do ln -s /usr/local/bin/fakepve /tmp/fp/$n; done
+  printf "vzdump: b1\n\tschedule 21:00\n\tvmid 100,97531,97532\n\nvzdump: b2\n\tvmid 97531\n\tstorage local\n" > /etc/pve/jobs.cfg
+  echo "lock: backup" > /etc/pve/nodes/sb/qemu-server/97531.conf; echo "lock: backup" > /etc/pve/nodes/sb/qemu-server/100.conf
+  echo "# restore test for 97531" > /etc/pve/storage.cfg
+  PATH=/tmp/fp:$PATH MSP_EXCLUDE="97531 97532" sh /root/capture-fixtures.sh > /tmp/cap.log 2>&1'
+h sh -c 'd=$(ls -d /tmp/msp-fixtures-*/) && test -s "$d"qm-list.out && test -z "$(grep -lE "hide-|(^|[^0-9])9753[12]([^0-9]|$)" "$d"*.out | grep -v storage-cfg.out)"'; t $? "capture with MSP_EXCLUDE: excluded guests in no output file (lists, datasets, locks, task JSON, jobs, snapshots)"
+h sh -c 'd=$(ls -d /tmp/msp-fixtures-*/); grep -q keep "$d"qm-list.out && grep -q "\"id\":\"100\"" "$d"pve-tasks.out && grep -q "store:vm/100" "$d"pbs-tasks.out && grep -qxE "[[:space:]]+vmid 100" "$d"vzdump-jobs.out && grep -q "100.conf:lock" "$d"pve-locks.out && grep -q vm/100/ "$d"pbs-snapshots-store.out && test -e "$d"qm-config-100.out && test ! -e "$d"qm-config-97531.out'; t $? "capture keeps guest 100 everywhere it was"
+h grep -q 'CHECK BY HAND.*VMID 97531 still appears in: storage-cfg.out' /tmp/cap.log; t $? "capture names the free-text file it could not scrub: $(h grep -m1 'CHECK BY HAND' /tmp/cap.log)"
+h rm -rf /etc/pve /tmp/fp /tmp/msp-fixtures-* /usr/local/bin/fakepve /root/capture-fixtures.sh
 mc 'stage SAFE -- /bin/echo probe' | grep -q 'refused: cron key cannot stage'; t $? "cron key cannot stage"
 m 'stage SAFE -- /bin/echo probe' | grep -q 'refused: no recorded shell'; t $? "no stage without a recorded shell"
 h sh -c 'mkdir -p /run/msp; echo TEST > /run/msp/recording'          # pretend the Exec seat is open
@@ -146,17 +171,24 @@ h msp-gate pending | grep -q 'EXPIRED'; t $? "pending reports an expired stage a
 o=$(h gate-approve.py); echo "$o" | grep -q EXPIRED; t $? "expired stage discarded"
 h sh -c 'echo "SAFE" > /var/spool/msp/staged; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /var/spool/msp/staged; printf "/bin/echo \$(id)\n" >> /var/spool/msp/staged'
 o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: staged text'; t $? "tampered spool with shell characters refused at the gate"
+plant() { h sh -c "printf 'SAFE\\n%s\\n%s\\n' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '$1' > /var/spool/msp/staged"; }   # hand-written spool, msp-stage bypassed
+plant "$(h sed -n 1p /etc/msp/never.list) probe"; o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: never-list'; t $? "planted never-list command refused at the gate"
+plant "destroy probe"; o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: deny-list'; t $? "planted deny-list command without DESTRUCTIVE refused at the gate"
 h sh -c 'sshd -T 2>/dev/null | grep -qiE "^permitrootlogin (prohibit-password|without-password)"'; t $? "root password login off on the hypervisor (key only)"
 # recorder + redaction
 h sh -c 'rm -f /run/msp/recording; printf "publickey ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n" > /tmp/authinfo; (echo "echo password=hunter2"; sleep 1; echo exit) | SSH_USER_AUTH=/tmp/authinfo msp-shell >/dev/null 2>&1; sleep 1'
 h sh -c 'grep -q "password=<REDACTED>" /var/log/msp/rec/*.clean && ! grep -q hunter2 /var/log/msp/rec/*.clean'; t $? "recording: clean copy redacted, secret absent"
 h sh -c 'grep -q hunter2 /var/log/msp/rec/raw/*.raw'; t $? "recording: raw copy verbatim, root-only ($(h stat -c %a /var/log/msp/rec/raw))"
+h sh -c 'systemd-tmpfiles --clean /etc/tmpfiles.d/msp-rec.conf && grep -q hunter2 /var/log/msp/rec/raw/*.raw'; t $? "raw retention rule parses and keeps a fresh recording"
 h test ! -f /run/msp/recording; t $? "recording ended cleanly"
 h journalctl -t msp-shell --no-pager | grep -q 'started by ops@sandbox'; t $? "the Exec seat names the operator from the ssh key that opened it"
 m read-all | grep -q 'password=<REDACTED>'; t $? "agent reads the redacted recording via read-all"
 # guarantee self-test from the box
 x systemctl start msp-check@guarantee.service
 x grep -q '^rc=0' /var/lib/msp/state/guarantee.state; t $? "guarantee self-test: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state)"
+x sh -c 'cp /etc/msp/guarantee.conf /tmp/g.bak; cp /etc/msp/hosts.conf /tmp/h.bak; sed -i "s/^never_probe=.*/never_probe=/" /etc/msp/guarantee.conf; echo "again=msp-sandbox-host" >> /etc/msp/hosts.conf; systemctl start msp-check@guarantee.service; cp /tmp/g.bak /etc/msp/guarantee.conf; cp /tmp/h.bak /etc/msp/hosts.conf'
+x grep -q '^rc=1' /var/lib/msp/state/guarantee.state && x grep -q '2 hosts.*no never-list configured' /var/lib/msp/state/guarantee.state; t $? "guarantee: every hosts.conf line probed, empty never-list is WARN: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state | cut -c1-70)"
+x sh -c 'mv /etc/msp/hosts.conf /tmp/h.bak; mv /etc/msp/guarantee.conf /tmp/g.bak; systemctl start msp-check@guarantee.service; r=$?; mv /tmp/h.bak /etc/msp/hosts.conf; mv /tmp/g.bak /etc/msp/guarantee.conf; exit $r' && x grep -q '^msg=OK no hosts declared' /var/lib/msp/state/guarantee.state; t $? "guarantee mid-deploy (msp_box not yet run) is OK, not a broken checker"
 h sh -c 'sed -i "s/^restrict //" /etc/ssh/msp_keys/msp-agent; systemctl reload ssh'   # weaken nothing that matters yet; the ForceCommand still holds
 h sh -c 'rm /etc/ssh/sshd_config.d/60-msp.conf; systemctl reload ssh'              # now remove the boundary
 x systemctl start msp-check@guarantee.service

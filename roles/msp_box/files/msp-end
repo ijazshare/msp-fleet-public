@@ -6,7 +6,8 @@ cd "$repo" || exit 1
 ok=1
 git fetch -q origin 2>/dev/null || true
 if [ -n "$(git status --porcelain)" ]; then echo "NOT DONE: uncommitted changes:"; git status --short | head -n 10; ok=0; fi
-if [ -n "$(git log --oneline '@{u}..HEAD' 2>/dev/null)" ]; then echo "NOT DONE: commits not pushed:"; git log --oneline '@{u}..HEAD'; ok=0; fi
+if ! git rev-parse -q --verify '@{u}' >/dev/null 2>&1; then echo "NOT DONE: branch has no upstream (never pushed)"; ok=0
+elif [ -n "$(git log --oneline '@{u}..HEAD' 2>/dev/null)" ]; then echo "NOT DONE: commits not pushed:"; git log --oneline '@{u}..HEAD'; ok=0; fi
 note=$(find sessions -name '*.md' -mmin -720 2>/dev/null | sort | tail -n 1)
 [ -n "$note" ] || { echo "NOT DONE: no session note in the last 12 hours (tell the agent: end session)"; ok=0; }
 if [ $ok = 1 ]; then

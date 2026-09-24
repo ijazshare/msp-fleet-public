@@ -90,6 +90,14 @@
     - {path: /var/log/msp/rec, mode: "0750"}
     - {path: /run/msp, mode: "0755"}
 
+- name: Raw recordings kept 90 days (one file per Exec session; systemd-tmpfiles-clean runs daily). Clean copies are kept.
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/msp-rec.conf
+    content: "d /var/log/msp/rec/raw 0700 root root 90d\n"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Agent public keys, read from the site box (works with any -l limit)
   ansible.builtin.slurp:
     src: /home/{{ hostvars[msp_box_host].msp_llm_user | default('llm') }}/.ssh/msp_{{ item }}.pub

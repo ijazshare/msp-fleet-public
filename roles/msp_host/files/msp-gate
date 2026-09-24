@@ -21,6 +21,11 @@ case $when in *[!0-9TZ:-]*|'') echo "REFUSED: bad timestamp in spool, discarded"
 age=$(( $(date +%s) - $(date -d "$when" +%s 2>/dev/null || echo 0) ))
 [ "$age" -gt 1800 ] && { echo "EXPIRED: staged $((age/60)) min ago, discarded"; logger -t msp-gate "expired label=$label"; exit 1; }
 case $cmd in *[!A-Za-z0-9\ ._:@/=,+-]*) echo "REFUSED: staged text contains characters outside the allowed set, discarded"; exit 1;; esac
+lc=$(printf '%s' "$cmd" | tr 'A-Z' 'a-z')   # same lists and matching as msp-stage: a hand-planted spool meets them too
+while IFS= read -r p; do [ -n "$p" ] && case $lc in *"$(printf '%s' "$p" | tr 'A-Z' 'a-z')"*) echo "REFUSED: never-list match: $p, discarded"; logger -t msp-gate "refused never-list label=$label"; exit 1;; esac; done < /etc/msp/never.list
+if [ "$label" != DESTRUCTIVE ]; then
+  while IFS= read -r p; do [ -n "$p" ] && case $lc in *"$(printf '%s' "$p" | tr 'A-Z' 'a-z')"*) echo "REFUSED: deny-list match ($p) without DESTRUCTIVE label, discarded"; logger -t msp-gate "refused deny-list label=$label"; exit 1;; esac; done < /etc/msp/deny.list
+fi
 printf '\n===== STAGED [%s] %s =====\n' "$label" "$when"
 printf '>>>%s<<<\n' "$cmd"
 printf '===== end of command (%s bytes) =====\n' "$(printf '%s' "$cmd" | wc -c)"
