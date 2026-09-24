@@ -4,7 +4,7 @@ Ansible control repo for the LLM-auditor deployment on Proxmox. Private: the inv
 Lives at `/srv/pve-fleet` (github.com/ijazshare/msp-fleet), shared by the laptop users through the `fleet`
 group. `sudo ./bootstrap-laptop.sh` sets it up once: the `ops` user and its key, Ansible in `.venv/` inside
 the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from that venv, logged to
-`runs/ansible.log`), and `ops <site>`, which runs `bin/ops-launch` as ops.
+`runs/ansible.log`), and `ops <site> <target>`, which runs `bin/ops-launch` as ops.
 
 ## Decisions this repo enforces
 
@@ -56,8 +56,9 @@ nothing written survives the window. `check-scratch` re-proves it daily. The lap
 
     ap playbooks/ping.yml -l SITE
     ap playbooks/site.yml -l SITE
-    ops SITE            # Plan (llm on the box) left, Exec (root in msp-shell on the lab hypervisor) right
-    ops SITE end        # close Exec, msp-end on the box, close the window
+    ops SITE pve        # Plan (llm on the box) left, Exec (root in msp-shell on that hypervisor) right
+    ops SITE lab        # same, second window; TARGET = a gated host's short name, as `msp` uses it
+    ops SITE end        # close every Exec window, msp-end on the box, close the session
 
 ## Adding a site
 

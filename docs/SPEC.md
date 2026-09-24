@@ -259,7 +259,7 @@ Per site, as `ops` on the laptop:
 6. Add the deploy key to the client's repository on GitHub. Run the playbook again; it clones the repository and finishes.
 7. Log in to the box as `llm` once and sign in to each AI tool.
 
-Then: `ops <site>` from the laptop, and work. To repair drift or roll out a change, run step 5 again; it changes only what differs.
+Then: `ops <site> <target>` from the laptop, and work. To repair drift or roll out a change, run step 5 again; it changes only what differs.
 
 For the SITE specifically: the existing container at `.253` stays as it is until the new one has been driven for a few days. Then it is deleted and its deploy key removed from GitHub.
 
