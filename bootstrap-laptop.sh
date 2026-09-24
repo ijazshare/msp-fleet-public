@@ -35,6 +35,19 @@ if [[ ! -f /home/ops/.ssh/id_ed25519 ]]; then
     sudo -u ops ssh-keygen -t ed25519 -f /home/ops/.ssh/id_ed25519 -C "ops@$(hostname)"
 fi
 
+# The daily entry: `ops SITE` from your normal login opens Plan + Exec for that site as the ops user.
+cat > /usr/local/bin/ops <<'EOF2'
+#!/bin/sh
+exec sudo -u ops -i /srv/pve-fleet/bin/ops-launch "$@"
+EOF2
+chmod 755 /usr/local/bin/ops
+# ops shells start in the fleet repo with its tools on PATH and the key loaded once
+grep -q 'pve-fleet/bin' /home/ops/.bashrc 2>/dev/null || cat >> /home/ops/.bashrc <<'EOF2'
+export PATH=/srv/pve-fleet/bin:$PATH
+cd /srv/pve-fleet
+[ -n "$SSH_AUTH_SOCK" ] && ssh-add -l >/dev/null 2>&1 || { eval "$(ssh-agent -s)" >/dev/null; ssh-add; }
+EOF2
+
 cat <<MSG
 
 Done. ops's public key (add it to GitHub, then on each PVE web shell run
@@ -42,9 +55,8 @@ Done. ops's public key (add it to GitHub, then on each PVE web shell run
 
 $(cat /home/ops/.ssh/id_ed25519.pub)
 
-Run playbooks as ops:
-  sudo -iu ops
-  cd /srv/pve-fleet && bin/ap playbooks/ping.yml
+Daily:  ops SITE        (Plan on the box, Exec on the lab hypervisor, side by side)
+Deploy: sudo -iu ops       then  ap playbooks/site.yml -l SITE
 
 Log out and back in once so your own user picks up the 'fleet' group.
 MSG

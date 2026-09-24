@@ -10,3 +10,4 @@ msp_deny_stage:                  # need label DESTRUCTIVE
   - purge
   - rollback
   - "zfs receive -F"
+msp_root_key_only: false        # true once the ops key is proven on the host: root password login off

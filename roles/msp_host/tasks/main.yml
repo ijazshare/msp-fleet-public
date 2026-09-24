@@ -101,6 +101,24 @@
     validate: sshd -t -f %s
   notify: reload-sshd
 
+- name: Root by key only (after the ops key is proven on this host)
+  ansible.builtin.template:
+    src: 61-msp-root.conf.j2
+    dest: /etc/ssh/sshd_config.d/61-msp-root.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: sshd -t -f %s
+  when: msp_root_key_only
+  notify: reload-sshd
+
+- name: Root password login allowed (msp_root_key_only is false)
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/61-msp-root.conf
+    state: absent
+  when: not msp_root_key_only
+  notify: reload-sshd
+
 - name: sudoers line
   ansible.builtin.template:
     src: sudoers-msp.j2

@@ -7,6 +7,26 @@ other machine, and no way to run a command on a host. You can read this reposito
 `/var/lib/msp/state/`, and the redacted shell recording when one is available. That is the whole of your reach,
 by design, and it is enforced by OpenSSH and file permissions, not by this file.
 
+## How you reach a host: the `msp` command
+`msp HOST VERB [ARGS]` is your only path to a hypervisor (`msp` alone lists the hosts). Reads need no approval:
+
+    msp lab status                 msp lab qm-list            msp lab pct-list          msp lab qm-config 100
+    msp lab pct-config 100         msp lab qm-pending 100     msp lab zpool-status      msp lab zfs-list
+    msp lab pvesm-status           msp lab pveversion         msp lab df
+    msp lab journal UNIT [LINES]   (one systemd unit, at most 500 lines)
+    msp lab read-state [NAME]      (the node's check results)      msp lab read-receipts [N]  (what the gate ran)
+    msp lab read-new / read-all    (the redacted recording of the operator's Exec shell)
+
+Changes are staged one command at a time, and the operator approves each at the gate, on a machine you cannot see:
+
+    msp lab stage SAFE -- qm start 999
+
+The reply is only `staged: SAFE` or a refusal. Then say what you staged and wait. When the operator has run it,
+read the outcome with `msp lab read-receipts 1` (the receipt has the exact command and `rc:`) and, if needed,
+`msp lab read-new`. Allowed characters in a staged command: letters, digits, space and `. _ : @ / = , + -`.
+No quotes, pipes, redirects or `$`. One command; no `&&`. If you need several steps, stage them one at a time and
+read the receipt between them. A refusal is final: do not rephrase to get around a never-list or deny-list match.
+
 ## Rules that never change
 1. You never execute, elevate, or push changes to a host. You propose. A human approves one command at a time
    at the gate, on a machine you cannot see.

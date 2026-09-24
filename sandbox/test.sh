@@ -141,6 +141,7 @@ h sh -c 'printf "SAFE\n2000-01-01T00:00:00Z\n/bin/echo old\n" > /var/spool/msp/s
 o=$(h gate-approve.py); echo "$o" | grep -q EXPIRED; t $? "expired stage discarded"
 h sh -c 'echo "SAFE" > /var/spool/msp/staged; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /var/spool/msp/staged; printf "/bin/echo \$(id)\n" >> /var/spool/msp/staged'
 o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: staged text'; t $? "tampered spool with shell characters refused at the gate"
+h sh -c 'sshd -T 2>/dev/null | grep -qiE "^permitrootlogin (prohibit-password|without-password)"'; t $? "root password login off on the hypervisor (key only)"
 # recorder + redaction
 h sh -c 'rm -f /run/msp/recording; (echo "echo password=hunter2"; sleep 1; echo exit) | msp-shell >/dev/null 2>&1; sleep 1'
 h sh -c 'grep -q "password=<REDACTED>" /var/log/msp/rec/*.clean && ! grep -q hunter2 /var/log/msp/rec/*.clean'; t $? "recording: clean copy redacted, secret absent"

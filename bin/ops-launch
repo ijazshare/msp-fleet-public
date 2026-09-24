@@ -1,0 +1,26 @@
+#!/bin/sh
+# ops-launch SITE [--print]: the daily entry. One tmux window on the laptop: left = Plan (llm on the site box),
+# right = Exec (root on the site's lab/exec hypervisor inside msp-shell, red). Run as the ops user; `ops SITE` wraps it.
+# Reads the fleet inventory so nothing is typed twice. --print shows the two ssh commands and exits.
+set -eu
+site=${1:?usage: ops SITE [--print]}; shift; print=${1:-}
+cd "$(dirname "$0")/.."
+inv() { .venv/bin/ansible-inventory --host "$1" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ansible_host",""))'; }
+box=$(inv "$site-box"); exech=$(.venv/bin/ansible-inventory --graph "$site" 2>/dev/null | sed -n 's/^ *|--\('"$site"'-[a-z]*\)$/\1/p' | grep -v -- "-box$\|-agent$" | while read -r h; do g=$(.venv/bin/ansible-inventory --host "$h" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("msp_gate", True))'); [ "$g" = True ] && echo "$h"; done | head -n 1)
+[ -n "$box" ] || { echo "no $site-box in the inventory"; exit 1; }
+exec_addr=$(inv "$exech")
+plan="ssh -t llm@$box"
+exe="ssh -t root@$exec_addr msp-shell"
+if [ "$print" = --print ]; then printf 'plan: %s\nexec: %s (%s)\n' "$plan" "$exe" "$exech"; exit 0; fi
+[ -n "$SSH_AUTH_SOCK" ] && ssh-add -l >/dev/null 2>&1 || { eval "$(ssh-agent -s)" >/dev/null; ssh-add; }
+s="ops-$site"
+if ! tmux has-session -t "$s" 2>/dev/null; then
+  tmux new-session -d -s "$s" -n "$site" "$plan"
+  tmux split-window -h -t "$s" "$exe"
+  tmux select-pane -t "$s:0.1" -P 'bg=colour52'           # Exec pane: dark red background
+  tmux set-option -t "$s" status-style 'bg=colour88 fg=colour231'
+  tmux set-option -t "$s" status-left " OPS $site   left: PLAN (llm@box)   right: EXEC (root, recorded) "
+  tmux set-option -t "$s" status-left-length 90
+  tmux select-pane -t "$s:0.0"
+fi
+exec tmux attach -t "$s"
