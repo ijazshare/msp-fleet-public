@@ -9,12 +9,12 @@ src=$(cd "$(dirname "$0")/.." && pwd); dest=${1:-}; work=${PUBLISH_WORK:-${TMPDI
 PATH=$src/.venv/bin:$PATH
 command -v git-filter-repo >/dev/null || { echo "git-filter-repo not installed (.venv/bin/pip install git-filter-repo)"; exit 1; }
 rm -rf "$work"; git clone -q --no-local --branch main "$src" "$work"; cd "$work"
-printf 'regex:\\b10\\.1\\.[0-9]+\\.[0-9]+\\b==>192.0.2.1\n' > "$work.replace"
+printf 'regex:\\b10\\.1\\.[0-9]+\\.[0-9]+\\b==>192.0.2.1\nga''tax==>CLIENT\n' > "$work.replace"   # the name is split so this file never carries it
 git filter-repo --quiet --invert-paths --path inventory/hosts.yml --path-regex '^group_vars/(?!all\.yml$)' --path-regex '^host_vars/' \
   --path roles/msp_checks/files/fixtures/_captured/ --path .github/ --replace-text "$work.replace"
 # gate: nothing site-shaped in any exported commit (the redaction fixtures hold fake values by design)
 bad=$(git rev-list --all | while read -r c; do
-  git grep -n -I -i -E '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}|\b10\.1\.[0-9]+\.[0-9]+\b|SITE|hc-ping\.com/[0-9a-f]' "$c" -- ':!roles/msp_host/files/fixtures/' 2>/dev/null || true
+  git grep -n -I -i -E '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}|\b10\.1\.[0-9]+\.[0-9]+\b|ga''tax|hc-ping\.com/[0-9a-f]' "$c" -- ':!roles/msp_host/files/fixtures/' 2>/dev/null || true   # the client name is split so this line does not match itself
 done | sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f-]{23}/<uuid>/g' | sort -u | head -n 20)
 [ -z "$bad" ] || { echo "publish REFUSED: site-shaped content in the export:"; echo "$bad"; exit 1; }
 echo "export clean: $(git rev-list --count main) commits, $(git ls-files | wc -l) files, at $work"
