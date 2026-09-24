@@ -3,3 +3,4 @@
 inventory/*.local.yml
 runs/*.log
 fixtures-in/
+.venv/
