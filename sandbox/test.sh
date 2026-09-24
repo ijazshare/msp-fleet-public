@@ -142,6 +142,7 @@ o=$(h gate-approve.py 999); echo "$o" | grep -q 'target mismatch'; t $? "DESTRUC
 m 'stage DESTRUCTIVE -- /bin/echo 100' >/dev/null
 o=$(h gate-approve.py 100); echo "$o" | grep -q 'RESULT rc=0'; t $? "DESTRUCTIVE: typed target id runs"
 h sh -c 'printf "SAFE\n2000-01-01T00:00:00Z\n/bin/echo old\n" > /var/spool/msp/staged'
+h msp-gate pending | grep -q 'EXPIRED'; t $? "pending reports an expired stage as expired"
 o=$(h gate-approve.py); echo "$o" | grep -q EXPIRED; t $? "expired stage discarded"
 h sh -c 'echo "SAFE" > /var/spool/msp/staged; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /var/spool/msp/staged; printf "/bin/echo \$(id)\n" >> /var/spool/msp/staged'
 o=$(h gate-approve.py); echo "$o" | grep -q 'REFUSED: staged text'; t $? "tampered spool with shell characters refused at the gate"

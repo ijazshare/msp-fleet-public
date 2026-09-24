@@ -5,7 +5,11 @@
 set -u
 spool=/var/spool/msp/staged; rec=/var/spool/msp/receipts
 case ${1:-} in
-  pending) if [ -f "$spool" ]; then echo "pending: $(sed -n 1p "$spool") staged $(sed -n 2p "$spool")"; else echo "nothing pending"; fi; exit 0;;
+  pending) if [ -f "$spool" ]; then
+             a=$(( $(date +%s) - $(date -d "$(sed -n 2p "$spool")" +%s 2>/dev/null || echo 0) ))
+             if [ "$a" -gt 1800 ]; then echo "pending: $(sed -n 1p "$spool") staged $(sed -n 2p "$spool") — EXPIRED ($((a/60)) min), step will discard it"
+             else echo "pending: $(sed -n 1p "$spool") staged $(sed -n 2p "$spool") ($((a/60)) min ago, expires at 30)"; fi
+           else echo "nothing pending"; fi; exit 0;;
   step) ;;
   *) echo "usage: msp-gate step|pending"; exit 1;;
 esac
