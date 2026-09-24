@@ -28,12 +28,13 @@ done
 # guest configs, without the node name in the path so a node rename does not look like drift.
 # guests.exclude in baseline.conf (VMIDs) are left out entirely: some guests are documented nowhere by decision.
 excl=$(grep -v '^[[:space:]]*#' /etc/msp/baseline.conf 2>/dev/null | sed -n 's/^[[:space:]]*guests\.exclude[[:space:]]*=[[:space:]]*//p' | tail -n 1)
+case $excl in *[!0-9\ ]*) excl=BAD; logger -t msp-dump "guests.exclude unreadable: no guest configs or guest dataset lines dumped (fail closed)";; esac
 if [ -d /etc/pve/nodes ]; then
   mkdir -p "$D/etc/pve/guests"
   for c in /etc/pve/nodes/*/qemu-server/*.conf /etc/pve/nodes/*/lxc/*.conf; do
     [ -e "$c" ] || continue
     id=$(basename "$c" .conf); skip=0
-    for e in $excl; do [ "$e" = "$id" ] && skip=1; done
+    [ "$excl" = BAD ] && skip=1; for e in $excl; do [ "$e" = "$id" ] && skip=1; done
     [ "$skip" = 1 ] || cp -a "$c" "$D/etc/pve/guests/"
   done
 fi
@@ -61,7 +62,8 @@ command -v zpool >/dev/null && { c zpool-status zpool status; c zpool-get-local 
 command -v proxmox-backup-manager >/dev/null && { c pbs-versions proxmox-backup-manager versions --verbose; c pbs-datastores proxmox-backup-manager datastore list; c pbs-cert proxmox-backup-manager cert info; }
 # strip volatile lines so they do not read as drift, and excluded guests' zvol/subvol dataset lines
 sed -i '/^smartctl\|^Copyright/d' "$D"/cmd/* 2>/dev/null
-for e in $excl; do case $e in *[!0-9]*) continue;; esac; sed -i -E "/(vm|subvol|base)-$e-/d" "$D"/cmd/* 2>/dev/null; done
+if [ "$excl" = BAD ]; then sed -i -E '/(vm|subvol|base)-[0-9]+-/d' "$D"/cmd/* 2>/dev/null
+else for e in $excl; do sed -i -E "/(vm|subvol|base)-$e-/d" "$D"/cmd/* 2>/dev/null; done; fi
 
 git add -A . >/dev/null 2>&1
 if [ -z "$(git status --porcelain)" ]; then echo "unchanged"; exit 0; fi

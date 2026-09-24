@@ -82,6 +82,10 @@ x sh -c 'test -e /var/lib/msp/dump/etc/pve/guests/100.conf && test ! -e /var/lib
 docker cp sandbox/fakepve msp-sandbox:/usr/local/bin/fakepve >/dev/null
 x sh -c 'ln -s fakepve /usr/local/bin/zfs; ln -s fakepve /usr/local/bin/zpool; echo "guests.exclude = 901 97531 97532" >> /etc/msp/baseline.conf; systemctl start msp-check@configdump.service'
 x sh -c 'grep -q vm-100-disk /var/lib/msp/dump/cmd/zfs-get-local && ! grep -rqE "9753[12]" /var/lib/msp/dump/cmd'; t $? "excluded guests' datasets absent from dump command output, 100 present"
+# 9c unparseable guests.exclude: the dump fails closed (no guest configs, no guest dataset lines)
+x sh -c 'echo "guests.exclude = 901 x" >> /etc/msp/baseline.conf; /usr/local/bin/msp-dump >/dev/null'   # direct: a 6th unit start in 10 s trips StartLimitBurst
+x sh -c 'test -z "$(ls -A /var/lib/msp/dump/etc/pve/guests 2>/dev/null)" && ! grep -rqE "(vm|subvol|base)-[0-9]+-" /var/lib/msp/dump/cmd'; t $? "unparseable guests.exclude: dump fails closed (no guest configs, no guest dataset lines)"
+x sed -i '/^guests.exclude = 901 x$/d' /etc/msp/baseline.conf
 x sh -c 'rm -f /usr/local/bin/zfs /usr/local/bin/zpool /usr/local/bin/fakepve'
 x rm -rf /etc/pve
 
