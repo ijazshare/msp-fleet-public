@@ -12,7 +12,7 @@ exec_addr=$(inv "$exech")
 plan="ssh -t llm@$box"
 exe="ssh -t root@$exec_addr msp-shell"
 if [ "$print" = --print ]; then printf 'plan: %s\nexec: %s (%s)\n' "$plan" "$exe" "$exech"; exit 0; fi
-[ -n "$SSH_AUTH_SOCK" ] && ssh-add -l >/dev/null 2>&1 || { eval "$(ssh-agent -s)" >/dev/null; ssh-add; }
+if [ -z "${SSH_AUTH_SOCK:-}" ] || ! ssh-add -l >/dev/null 2>&1; then eval "$(ssh-agent -s)" >/dev/null; ssh-add; fi
 s="ops-$site"
 if ! tmux has-session -t "$s" 2>/dev/null; then
   tmux new-session -d -s "$s" -n "$site" "$plan"
