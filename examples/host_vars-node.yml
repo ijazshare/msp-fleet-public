@@ -1,0 +1,10 @@
+# Copy to host_vars/<node>.yml. Healthchecks.io ping UUIDs for THIS node, one check per subject.
+# Name each check "<node> <subject>": the name is the whole alert message. A node with extra checks
+# (the box: guarantee, scratch) needs a UUID for each of those too. Treat these UUIDs as secrets.
+msp_healthchecks:
+  heartbeat: CHANGEME
+  systemd: CHANGEME
+  disk: CHANGEME
+  timers: CHANGEME
+  configdump: CHANGEME
+  _checker: CHANGEME                # pinged by every run: the "checker itself broke" alert

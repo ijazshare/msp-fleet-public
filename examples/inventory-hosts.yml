@@ -1,0 +1,31 @@
+# Copy to inventory/hosts.yml. One group per SITE: one site box, one or more hypervisors.
+# Host names are <site>-<short>; the short name (pve, lab, pbs ...) is what `msp` and `ops <site> <short>` use.
+all:
+  children:
+    pve_hosts:
+      hosts:
+        example-pve:                    # production hypervisor
+          ansible_host: CHANGEME        # IP or DNS name reachable from the laptop
+          ansible_user: root
+          msp_gate: true                # false = checks only: no dispatcher, gate or recorder on this host
+        example-lab:                    # lab hypervisor for drills and fault injection, if the site has one
+          ansible_host: CHANGEME
+          ansible_user: root
+          msp_lab: true
+          msp_root_key_only: false      # true once the ops key is proven on the host: root password login off
+    box:
+      vars:
+        msp_checks_extra: [guarantee, scratch]
+      hosts:
+        example-box:                    # plain Debian, the LLM seat; nothing else runs here
+          ansible_host: CHANGEME
+          ansible_user: root
+    example:
+      hosts:
+        example-pve:
+        example-lab:
+        example-box:
+      vars:
+        site: example
+        pve_node: example-pve
+        msp_box_host: example-box

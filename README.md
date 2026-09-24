@@ -1,8 +1,10 @@
 # msp-fleet
 
-Ansible control repo for the LLM-auditor deployment on Proxmox. Private: the inventory names client hosts.
-Lives at `/srv/pve-fleet` (github.com/ijazshare/msp-fleet), shared by the laptop users through the `fleet`
-group. `sudo ./bootstrap-laptop.sh` sets it up once: the `ops` user and its key, Ansible in `.venv/` inside
+Ansible control repo for the LLM-auditor deployment on Proxmox. The private repo (github.com/ijazshare/msp-fleet)
+holds everything; github.com/ijazshare/msp-fleet-public is its automated export minus the site data (inventory,
+`group_vars/<site>`, `host_vars`, captured fixtures), rebuilt by `bin/publish` on every push. Start a site from
+`examples/`. Lives at `/srv/pve-fleet`, shared by the laptop users through the `fleet` group.
+`sudo ./bootstrap-laptop.sh` sets it up once: the `ops` user and its key, Ansible in `.venv/` inside
 the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from that venv, logged to
 `runs/ansible.log`), and `ops <site> <target>`, which runs `bin/ops-launch` as ops.
 

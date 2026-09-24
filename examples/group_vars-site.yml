@@ -1,0 +1,13 @@
+# Copy to group_vars/<site>.yml. Everything client-specific lives here and nowhere else.
+msp_baseline:
+  guests.exclude: ""                # VMIDs that must never appear in any dump, state file, read or note
+msp_repo_url: git@github.com:ORG/CLIENT-REPO.git   # the client's own record; the box pushes session notes there
+msp_never_stage:                    # never staged, whatever the label (case-insensitive substring match)
+  - "zpool destroy"
+  - "wipefs"
+  - "mkfs"
+  - "dd of=/dev/"
+msp_client_rules: |
+  Site rules for the AI, appended to AGENTS.md. Say what is production, what is a lab, what is never touched.
+msp_operator_pubkeys:               # who may open the Exec seat; receipts name the approver by the key's comment
+  - "ssh-ed25519 AAAA... ops@laptop"

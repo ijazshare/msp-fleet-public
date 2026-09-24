@@ -47,6 +47,13 @@ export PATH=/srv/pve-fleet/bin:$PATH
 cd /srv/pve-fleet
 [ -n "$SSH_AUTH_SOCK" ] && ssh-add -l >/dev/null 2>&1 || { eval "$(ssh-agent -s)" >/dev/null; ssh-add; }
 EOF2
+# every push re-exports the public subset (bin/publish); a failed export never blocks the push itself
+cat > "$DST/.git/hooks/pre-push" <<'EOF2'
+#!/bin/sh
+bin/publish https://github.com/ijazshare/msp-fleet-public.git || echo "public export NOT updated: fix and run bin/publish by hand"
+exit 0
+EOF2
+chmod 755 "$DST/.git/hooks/pre-push"
 
 cat <<MSG
 
