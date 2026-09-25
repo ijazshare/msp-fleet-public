@@ -105,3 +105,8 @@ Removes the sshd Match block, the `msp-agent` account, dispatcher/gate/recorder 
 hypervisors, and stops the checks on the box. Recordings, receipts and the config dump are kept under
 `/var/log/msp/rec` and `/var/lib/msp/dump` unless `msp_offboard_purge: true`; re-image the box, remove its
 deploy key from the client repo, and archive the repo.
+
+## License
+
+AGPL-3.0-or-later; see `LICENSE`. If you run a modified copy as a network service, you must offer its source
+to the users of that service.
