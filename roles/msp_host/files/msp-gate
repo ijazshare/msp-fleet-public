@@ -34,6 +34,7 @@ printf 'type %s to run, anything else aborts: ' "$code"; read -r ans
 [ "$ans" = "$code" ] || { echo "ABORTED"; logger -t msp-gate "aborted label=$label"; exit 1; }
 if [ "$label" = DESTRUCTIVE ]; then
   printf 'DESTRUCTIVE: type the target ID exactly as it appears in the command: '; read -r tid
+  case $tid in ''|*[!A-Za-z0-9_.:-]*) echo "ABORTED: target ID must be one non-empty word"; logger -t msp-gate "aborted empty target label=$label"; exit 1;; esac
   case " $cmd " in *" $tid "*) ;; *) echo "ABORTED: target mismatch"; logger -t msp-gate "aborted target mismatch label=$label"; exit 1;; esac
 fi
 approver=$(cat /run/msp/approver 2>/dev/null || echo root)

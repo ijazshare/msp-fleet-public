@@ -1,0 +1,6 @@
+msp_snmp: false                 # per site: serve the checks over SNMP (snmpd extend), read-only
+msp_snmp_bind: "udp:161"        # per site, restrict to the LAN address if the box has more than one
+msp_snmp_rocommunity: ""        # required when msp_snmp is true
+msp_snmp_allowed: "127.0.0.1"   # source network/address allowed to use the community (per site: the LAN)
+msp_snmp_location: "{{ site }} site"
+msp_snmp_contact: ""

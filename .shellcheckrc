@@ -1,0 +1,4 @@
+# Deliberate in this repo: POSIX sh scripts source runtime paths, build argv lists by word splitting,
+# and write inner shell snippets in single quotes. Warnings stay on.
+disable=SC1090,SC1091,SC2016,SC2012,SC2018,SC2019,SC2086,SC2153,SC2181,SC2319
+severity=warning

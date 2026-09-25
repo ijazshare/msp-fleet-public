@@ -1,5 +1,5 @@
 #!/bin/sh
-# msp-run-check NAME: lock, run check-NAME.sh, write state atomically, log changes, heartbeat.
+# msp-run-check NAME: lock, run check-NAME.sh, write state atomically, log changes, notify.
 # Exit code is the check's (0 ok, 1 warn, 2 crit); the unit treats those as success. 3+ = the checker broke.
 set -u
 name=$1
@@ -32,21 +32,13 @@ if [ "$changed" = 1 ]; then
   printf '%s %s rc=%s %s\n' "$now" "$name" "$rc" "$msg" >> "$log/changes.log"
 fi
 
-# heartbeat. Healthchecks counts only plain pings as "alive", so: alive (ok, warn, crit below streak) = plain
-# ping carrying the message; crit at streak = /fail, which pages by check name. Findings live in the state file.
-hc() { # hc LABEL UUID SUFFIX BODY
-  if curl -fsS -m 10 -o /dev/null --data-raw "$4" "$MSP_HC_BASE/$2$3"; then hb=sent; else hb=offline; fi
-  printf '%s %s %s%s %s\n' "$now" "$1" "$2" "$3" "$hb" >> "$log/heartbeat.log"
-}
-uuid=$(sed -n "s/^$name=//p" /etc/msp/healthchecks.conf 2>/dev/null)
-if [ -n "$uuid" ]; then
-  if [ "$rc" -ge 2 ] && [ "$s" -ge "${MSP_CONSECUTIVE:-2}" ]; then ep=/fail; else ep=""; fi
-  hc "$name" "$uuid" "$ep" "$msg"
-fi
+# Notify through msp-notify, which fans the event out to every configured backend. Healthchecks semantics
+# are unchanged: a plain ping carries the message until a crit repeats MSP_CONSECUTIVE times, then /fail
+# pages. A state change also rides an SNMP trap to the site's own NMS when one is configured.
+mode=alive
+[ "$rc" -ge 2 ] && [ "$s" -ge "${MSP_CONSECUTIVE:-2}" ] && mode=fail
+/usr/local/bin/msp-notify "$name" "$rc" "$msg" "$mode" "$changed"
 # the checker ID otherwise only ever receives /fail from msp-alert and would read as never pinged:
 # the heartbeat run keeps it alive, so only a real checker crash flips it.
-if [ "$name" = heartbeat ]; then
-  cu=$(sed -n 's/^_checker=//p' /etc/msp/healthchecks.conf 2>/dev/null)
-  [ -n "$cu" ] && hc _checker "$cu" "" "checker alive"
-fi
+[ "$name" = heartbeat ] && /usr/local/bin/msp-notify _checker 0 "checker alive" alive 0
 exit "$rc"

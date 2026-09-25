@@ -1,0 +1,4 @@
+# Minimal profile: catches broken playbooks (syntax, layout, invalid modules) without fighting deliberate
+# style choices (shell tasks that are the product, curl installers, role-local variable names).
+# Raise it when the repo is ready: ansible-lint --profile basic playbooks roles
+profile: min

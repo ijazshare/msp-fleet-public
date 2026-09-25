@@ -1,6 +1,0 @@
-smartctl 7.5 2025-04-30 r5714 [x86_64-linux-7.0.6-2-pve] (local build)
-Copyright (C) 2002-25, Bruce Allen, Christian Franke, www.smartmontools.org
-
-Read SMART Data failed: scsi error aborted command
-
-=== START OF READ SMART DATA SECTION ===

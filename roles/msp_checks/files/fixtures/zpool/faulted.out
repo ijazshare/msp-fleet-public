@@ -1,0 +1,9 @@
+  pool: tank
+ state: FAULTED
+status: One or more devices could not be opened.
+action: Restore the device(s) and bring them online.
+config:
+
+	NAME    STATE     READ WRITE CKSUM
+	tank    FAULTED      0     0     1
+errors: 3 data errors, use '-v' for a list

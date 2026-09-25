@@ -1,14 +1,21 @@
 #!/bin/sh
 # Fixture tests for every check. Prints a PASS/FAIL table; exit 1 if any FAIL.
-# A fixture is fixtures/<check>/<case>.out (saved real command output) + <case>.expect
-# (line 1: expected exit code, line 2: text the message must contain) and optional <case>.baseline.
+# Shipped fixtures live in fixtures/<check>/ (rule 0: every check has a fixture pair; the role copies these to
+# every node). Captured real shapes live in the repo's captures/<host>-<date>/fixtures/<check>/ and are run here
+# on the laptop only: they carry site data and are never shipped to nodes. tests/run.sh is safe on both.
+# A fixture is <case>.out (saved command output) + <case>.expect (line 1: expected exit code, line 2: text the
+# message must contain) and optional <case>.baseline.
 here=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$here/../../.." 2>/dev/null && pwd)          # repo root when run in the repo, / on an installed node
+directories="$here/fixtures"
+for d in "$root"/captures/*/fixtures; do [ -d "$d" ] && directories="$directories $d"; done
 export MSP_LIB="$here/msp-lib.sh"
 fail=0; total=0
 printf '%-8s %-9s %-24s %s\n' RESULT CHECK CASE GOT
-for dir in "$here"/fixtures/*/; do
+for base in $directories; do
+for dir in "$base"/*/; do
   check=$(basename "$dir")
-  [ -x "$here/checks/check-$check.sh" ] || continue    # _captured/: real shapes waiting for a check
+  [ -x "$here/checks/check-$check.sh" ] || continue    # a capture folder waiting for a check
   for out in "$dir"*.out; do
     [ -e "$out" ] || continue
     case=$(basename "$out" .out); total=$((total+1))
@@ -19,6 +26,7 @@ for dir in "$here"/fixtures/*/; do
     if [ "$rc" = "$want_rc" ] && printf '%s' "$got" | grep -qF -- "$want_txt"; then r=PASS; else r=FAIL; fail=$((fail+1)); fi
     printf '%-8s %-9s %-24s rc=%s %s\n' "$r" "$check" "$case" "$rc" "$got"
   done
+done
 done
 echo "$((total-fail))/$total passed"
 [ "$fail" = 0 ]

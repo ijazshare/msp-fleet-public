@@ -13,7 +13,7 @@ root@pve:~# sha256sum /var/lib/vz/template/iso/debian-13.iso
 a3f2b8c1d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d  /var/lib/vz/template/iso/debian-13.iso
 root@pve:~# qm config 102 | grep -E 'keyboard|name|net0'
 keyboard: en-us
-name: SITE-dc1
+name: client-dc1
 net0: virtio=BC:24:11:17:CE:50,bridge=vmbr0
 root@pve:~# cat /root/.ssh/id_ed25519
 -----BEGIN OPENSSH PRIVATE KEY-----

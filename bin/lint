@@ -1,0 +1,31 @@
+#!/bin/sh
+# bin/lint: shellcheck every shell script in the repo, then ansible-lint (.ansible-lint pins the profile).
+# shellcheck comes from apt and ansible-lint from .venv (both installed by bootstrap-laptop.sh).
+#   bin/lint                          fail on any finding
+#   LINT_SKIP_MISSING=1 bin/lint      warn and skip a tool that is not installed
+set -u
+cd "$(dirname "$0")/.." || exit 1
+fail=0
+sc=$(command -v shellcheck || true)
+al=.venv/bin/ansible-lint; [ -x "$al" ] || al=$(command -v ansible-lint || true)
+if [ -n "$sc" ]; then
+  n=0
+  for f in $(git ls-files 'bin/*' 'sandbox/*' 'bootstrap-laptop.sh' 'roles/*'); do
+    [ -f "$f" ] || continue
+    head -n 1 "$f" | grep -qE '^#!.*(sh|bash)' || continue
+    n=$((n+1))
+    "$sc" "$f" || fail=1
+  done
+  echo "shellcheck: $n files checked"
+else
+  echo "shellcheck: not installed"
+  [ "${LINT_SKIP_MISSING:-0}" = 1 ] || fail=1
+fi
+if [ -n "$al" ]; then
+  "$al" playbooks roles || fail=1
+  echo "ansible-lint: ok"
+else
+  echo "ansible-lint: not installed"
+  [ "${LINT_SKIP_MISSING:-0}" = 1 ] || fail=1
+fi
+exit "$fail"

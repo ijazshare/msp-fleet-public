@@ -1,20 +1,25 @@
 #!/bin/sh
 # bin/publish [DEST]: export the public subset of this repo (the framework, no site data) and push it to DEST.
-# Dropped from every commit: inventory/hosts.yml, group_vars/<site>.yml, host_vars/, captured fixtures, .github/.
-# Private addresses anywhere in history become 192.0.2.1. A gate then scans the whole exported history and refuses
-# to push if anything site-shaped is left. Without DEST it only exports (to $PUBLISH_WORK) and runs the gate.
+# Dropped from every commit: the whole inventory/, group_vars/<site>.yml, host_vars/, captures/, .github/.
+# Addresses, host names and site names discovered in inventory/ are scrubbed wherever they appear in history;
+# a gate then scans the whole exported history and refuses to push if any site-shaped content is left.
+# Without DEST it only exports (to $PUBLISH_WORK) and runs the gate.
 # ponytail: filter-repo is deterministic, so a re-export is a fast-forward unless this repo's history was rewritten.
 set -eu
 src=$(cd "$(dirname "$0")/.." && pwd); dest=${1:-}; work=${PUBLISH_WORK:-${TMPDIR:-/tmp}/msp-fleet-publish}
 PATH=$src/.venv/bin:$PATH
+PY=$src/.venv/bin/python3; [ -x "$PY" ] || PY=python3
 command -v git-filter-repo >/dev/null || { echo "git-filter-repo not installed (.venv/bin/pip install git-filter-repo)"; exit 1; }
+scrub=$("$PY" "$src/bin/publish-data.py" scrub "$src") || exit 1
+gate=$("$PY" "$src/bin/publish-data.py" gate "$src") || exit 1
 rm -rf "$work"; git clone -q --no-local --branch main "$src" "$work"; cd "$work"
-printf 'regex:\\b10\\.1\\.[0-9]+\\.[0-9]+\\b==>192.0.2.1\nga''tax==>CLIENT\n' > "$work.replace"   # the name is split so this file never carries it
-git filter-repo --quiet --invert-paths --path inventory/hosts.yml --path-regex '^group_vars/(?!all\.yml$)' --path-regex '^host_vars/' \
-  --path roles/msp_checks/files/fixtures/_captured/ --path .github/ --replace-text "$work.replace"
+printf '%s\n' "$scrub" > "$work.replace"
+git filter-repo --quiet --invert-paths \
+  --path inventory/ --path host_vars/ --path captures/ --path .github/ --path fixtures-in/ \
+  --path-regex '^group_vars/(?!all\.yml$)' --replace-text "$work.replace"
 # gate: nothing site-shaped in any exported commit (the redaction fixtures hold fake values by design)
 bad=$(git rev-list --all | while read -r c; do
-  git grep -n -I -i -E '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}|\b10\.1\.[0-9]+\.[0-9]+\b|ga''tax|hc-ping\.com/[0-9a-f]' "$c" -- ':!roles/msp_host/files/fixtures/' 2>/dev/null || true   # the client name is split so this line does not match itself
+  git grep -n -I -E "$gate" "$c" -- ':!roles/msp_host/files/fixtures/' 2>/dev/null || true
 done | sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f-]{23}/<uuid>/g' | sort -u | head -n 20)
 [ -z "$bad" ] || { echo "publish REFUSED: site-shaped content in the export:"; echo "$bad"; exit 1; }
 echo "export clean: $(git rev-list --count main) commits, $(git ls-files | wc -l) files, at $work"

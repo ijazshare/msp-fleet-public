@@ -1,5 +1,5 @@
-msp_checks_base: [heartbeat, systemd, disk, configdump]
-msp_checks_extra: []          # per group: box adds guarantee
+msp_checks_base: [heartbeat, systemd, disk, smart, zpool, time, backup, configdump]
+msp_checks_extra: []          # per group: box adds guarantee, scratch
 msp_checks: "{{ msp_checks_base + msp_checks_extra + ['timers'] }}"   # timers last: its first run must see the others started
 msp_interval: 15min
 msp_intervals:               # per-check override of the timer interval
@@ -13,4 +13,17 @@ msp_baseline_defaults:
   disk.warn: 80
   disk.crit: 90
   disk.ignore: ""
+  smart.wear_warn: 90         # NVMe percentage_used that is a WARN
+  time.warn_ms: 200           # chrony system-time offset thresholds
+  time.crit_ms: 2000
+  time.allow_unsynced: "false"
+  backup.paths: ""            # space-separated dirs/globs to look for the newest backup file in; empty = check off
+  backup.warn_age: 93600      # seconds since the newest file (26h: one missed nightly run)
+  backup.crit_age: 180000     # seconds (50h)
   guests.exclude: ""          # VMIDs that never appear in any dump, state file or note
+msp_notify_healthchecks: true # backends for msp-notify; the rest switch on when set per site
+msp_webhook_url: ""
+msp_snmptrap_target: ""       # host[:port]; msp-notify sends traps on page/change (needs snmptrap on the node)
+msp_snmptrap_community: public
+msp_snmptrap_oid: 1.3.6.1.4.1.8072.9999.1
+msp_notify_command: ""        # executable called as COMMAND NAME RC MESSAGE MODE CHANGED

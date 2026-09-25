@@ -1,0 +1,54 @@
+#!/bin/sh
+# msp-notify NAME RC MESSAGE [alive|fail] [changed]: one outbound notification, every configured backend.
+# Backends come from /etc/msp/notify.conf (healthchecks, webhook, snmptrap, command). Copies of the same
+# Healthchecks contract as before: plain ping = alive, /fail = page. Never blocks the check that called it.
+set -u
+[ $# -ge 3 ] || { echo "usage: msp-notify NAME RC MESSAGE [alive|fail] [changed]" >&2; exit 2; }
+name=$1; rc=$2; msg=$3; mode=${4:-alive}; changed=${5:-0}
+. /etc/msp/msp.conf
+[ -r /etc/msp/notify.conf ] && . /etc/msp/notify.conf
+backends=${MSP_NOTIFY_BACKENDS-healthchecks}      # unset (old sites) = healthchecks; set but empty = none
+node=${MSP_NODE:-$(hostname -s)}
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ); log=/var/log/msp
+in_list() { for w in $2; do [ "$w" = "$1" ] && return 0; done; return 1; }
+note() { printf '%s %s\n' "$now" "$*" >> "$log/notify.log" 2>/dev/null || true; }
+json() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r'; }
+
+# healthchecks: uuid lookup stays in healthchecks.conf, so a site that already has UUIDs keeps its history
+if in_list healthchecks "$backends"; then
+  uuid=$(sed -n "s/^$name=//p" /etc/msp/healthchecks.conf 2>/dev/null)
+  if [ -n "$uuid" ] && [ -n "${MSP_HC_BASE:-}" ]; then
+    ep=; [ "$mode" = fail ] && ep=/fail
+    if curl -fsS -m 10 -o /dev/null --data-raw "$msg" "$MSP_HC_BASE/$uuid$ep"; then hb=sent; else hb=offline; fi
+    printf '%s %s %s%s %s\n' "$now" "$name" "$uuid" "$ep" "$hb" >> "$log/heartbeat.log"
+  fi
+fi
+
+# webhook: one JSON POST, whatever the site's receiver is (Slack relay, internal ticket queue, ...)
+if in_list webhook "$backends" && [ -n "${MSP_WEBHOOK_URL:-}" ]; then
+  body=$(printf '{"node":"%s","check":"%s","rc":%s,"msg":"%s","mode":"%s","changed":%s}' \
+    "$(json "$node")" "$(json "$name")" "$rc" "$(json "$msg")" "$(json "$mode")" "$changed")
+  if curl -fsS -m 10 -o /dev/null -H 'Content-Type: application/json' --data-raw "$body" "$MSP_WEBHOOK_URL"; then
+    note "webhook $name rc=$rc sent"
+  else
+    note "webhook $name rc=$rc failed"
+  fi
+fi
+
+# snmptrap: on a page or an actual state change only (never every 15 minutes). Site NMS receives it cold.
+if in_list snmptrap "$backends" && [ -n "${MSP_SNMPTRAP_TARGET:-}" ] && { [ "$mode" = fail ] || [ "$changed" = 1 ]; }; then
+  if command -v snmptrap >/dev/null 2>&1; then
+    if snmptrap -v2c -c "$MSP_SNMPTRAP_COMMUNITY" "$MSP_SNMPTRAP_TARGET" '' "$MSP_SNMPTRAP_OID" \
+         "$MSP_SNMPTRAP_OID.1" s "$node" "$MSP_SNMPTRAP_OID.2" s "$name" \
+         "$MSP_SNMPTRAP_OID.3" i "$rc" "$MSP_SNMPTRAP_OID.4" s "$msg"
+    then note "snmptrap $name rc=$rc sent"; else note "snmptrap $name rc=$rc failed"; fi
+  else
+    note "snmptrap $name rc=$rc skipped: snmptrap not installed"
+  fi
+fi
+
+# command: the escape hatch for anything else, called as COMMAND NAME RC MESSAGE MODE CHANGED (argv, no shell)
+if in_list command "$backends" && [ -n "${MSP_NOTIFY_COMMAND:-}" ] && [ -x "$MSP_NOTIFY_COMMAND" ]; then
+  "$MSP_NOTIFY_COMMAND" "$name" "$rc" "$msg" "$mode" "$changed" || note "command $name rc=$rc failed"
+fi
+exit 0

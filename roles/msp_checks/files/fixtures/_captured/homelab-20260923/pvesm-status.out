@@ -1,5 +1,0 @@
-Name             Type     Status     Total (KiB)      Used (KiB) Available (KiB)        %
-fast          zfspool     active      1804599296       881371328       923227968   48.84%
-local             dir     active       898515968         9379200       889136768    1.04%
-local-zfs     zfspool     active       929818588        40681788       889136800    4.38%
-unas2             nfs     active     19523297280      1023298048     18497956864    5.24%

@@ -1,0 +1,15 @@
+#!/bin/sh
+# msp-snmp-state CHECK: print the check's last message and exit its rc, for snmpd's `extend` directive.
+# snmpd runs this as the unprivileged snmpd user; state files are 0644, so that is all it can read.
+# NMS reads: nsExtendOutputFull (.1.3.6.1.4.1.8072.1.3.2.3.1.2.<name>) = the message;
+#            nsExtendOutput1Exit (.1.3.6.1.4.1.8072.1.3.2.3.1.4.<name>) = 0 OK, 1 WARN, 2 CRIT, 3 unknown.
+set -u
+name=${1:?usage: msp-snmp-state CHECK}
+case $name in ''|*[!A-Za-z0-9_-]*) echo "bad check name"; exit 3;; esac
+f=/var/lib/msp/state/$name.state
+[ -r "$f" ] || { echo "no state for $name yet"; exit 3; }
+rc=$(sed -n 's/^rc=//p' "$f" | head -n 1)
+msg=$(sed -n 's/^msg=//p' "$f" | head -n 1)
+case $rc in ''|*[!0-9]*) echo "unreadable state for $name"; exit 3;; esac
+printf '%s\n' "$msg"
+exit "$rc"

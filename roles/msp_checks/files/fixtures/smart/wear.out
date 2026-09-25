@@ -1,0 +1,4 @@
+##NV /dev/nvme0
+Smart Log for NVME device:nvme0 namespace-id:ffffffff
+critical_warning			: 0
+percentage_used				: 95%

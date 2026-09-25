@@ -17,7 +17,7 @@ while time.time() < deadline:
         m = re.search(rb"type ([a-z0-9]{4}) to run", buf)
         if m and not typed:
             os.write(fd, (b"nope\n" if wrong else m.group(1) + b"\n")); typed = True
-        if b"type the target ID" in buf and not typed_t and target:
+        if b"type the target ID" in buf and not typed_t and target is not None:
             os.write(fd, target.encode() + b"\n"); typed_t = True
 sys.stdout.write(buf.decode(errors="replace")); sys.stdout.flush()
 _, status = os.waitpid(pid, 0); sys.exit(os.waitstatus_to_exitcode(status))

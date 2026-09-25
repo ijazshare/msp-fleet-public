@@ -1,0 +1,7 @@
+---
+# Collections every playbook needs. Installed by bootstrap-laptop.sh and CI:
+#   ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: ansible.posix
+  - name: community.general
+  - name: community.docker

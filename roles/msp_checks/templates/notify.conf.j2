@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# Outbound notification backends. All are one-way calls; the site needs no inbound path.
+# healthchecks is the default; each other backend switches on when its value is set in group_vars/<site>.yml.
+{% set backends = [] -%}
+{% if msp_notify_healthchecks %}{% set _ = backends.append('healthchecks') %}{% endif -%}
+{% if msp_webhook_url %}{% set _ = backends.append('webhook') %}{% endif -%}
+{% if msp_snmptrap_target %}{% set _ = backends.append('snmptrap') %}{% endif -%}
+{% if msp_notify_command %}{% set _ = backends.append('command') %}{% endif -%}
+MSP_NOTIFY_BACKENDS="{{ backends | join(' ') }}"
+MSP_WEBHOOK_URL="{{ msp_webhook_url }}"
+MSP_SNMPTRAP_TARGET="{{ msp_snmptrap_target }}"
+MSP_SNMPTRAP_COMMUNITY="{{ msp_snmptrap_community }}"
+MSP_SNMPTRAP_OID="{{ msp_snmptrap_oid }}"
+MSP_NOTIFY_COMMAND="{{ msp_notify_command }}"

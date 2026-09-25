@@ -4,6 +4,8 @@
   hosts: box
   roles:
     - msp_checks
+    - role: msp_snmp
+      when: msp_snmp | default(false)
     - msp_box
     - role: msp_tools
       when: msp_tools_install | default(true)
@@ -12,6 +14,8 @@
   hosts: pve_hosts
   roles:
     - msp_checks
+    - role: msp_snmp
+      when: msp_snmp | default(false)
     - role: msp_host
       when: msp_gate | default(true)
 

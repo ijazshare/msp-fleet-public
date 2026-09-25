@@ -1,4 +1,0 @@
-Re-executing '/usr/sbin/proxmox-boot-tool' in new private mount namespace..
-System currently booted with uefi
-D4A7-5809 is configured with: uefi (versions: 7.0.2-6-pve, 7.0.6-2-pve)
-D4A7-AE5D is configured with: uefi (versions: 7.0.2-6-pve, 7.0.6-2-pve)

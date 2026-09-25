@@ -1,0 +1,5 @@
+##DEV /dev/sdb
+##H 2
+Smartctl open device: /dev/sdb failed: No such device
+##A 2
+Smartctl open device: /dev/sdb failed: No such device

@@ -1,0 +1,10 @@
+#!/bin/sh
+# pre-push (installed with `git config core.hooksPath .githooks` by bootstrap-laptop.sh):
+# every push re-exports the public subset. The destination comes from `git config msp.publishDest`;
+# without it the export is built and gated but not pushed. A failure never blocks the private push.
+if [ -n "$(git config --get msp.publishDest || true)" ]; then
+  bin/publish "$(git config --get msp.publishDest)" || echo "public export NOT updated: fix and run bin/publish by hand"
+else
+  bin/publish || echo "public export gate FAILED: nothing was pushed; fix and run bin/publish by hand"
+fi
+exit 0

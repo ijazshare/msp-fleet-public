@@ -4,7 +4,10 @@
 #   sh capture-fixtures.sh            -> /tmp/msp-fixtures-<hostname>-<date>.tar.gz
 #   MSP_EXCLUDE="901 902" sh capture-fixtures.sh   -> same, those VMIDs left out (the site's guests.exclude)
 # Then copy that file to the laptop into ~/pve-fleet/fixtures-in/ . Outputs contain hostnames, VM names,
-# pool names, task logs; no passwords or keys. Read the directory before you copy it if in doubt.
+# pool names, task logs; no passwords or keys. They are SITE DATA: store the extracted directory under the
+# laptop repo's captures/<site>-<date>/ (never under roles/msp_checks/files/fixtures/, which is shipped to
+# every node at every site). Read the directory before you copy it if in doubt. To turn a capture into a
+# regression case for a check, copy a scrubbed pair into captures/<site>-<date>/fixtures/<check>/.
 # MSP_EXCLUDE removes those guests from: per-guest configs, qm/pct list rows, zfs dataset lines, lock lines,
 # PVE/PBS task JSON (needs python3), vzdump job vmid/exclude lists and PBS snapshot lists. It does NOT read
 # free text (job comments, notes, storage.cfg): the run ends by naming every file in which an excluded VMID
@@ -107,4 +110,4 @@ for id in $ex; do
   l=$(grep -lE "(^|[^0-9])$id([^0-9]|\$)" "$out"/*.out | sed "s|$out/||" | tr '\n' ' ')
   [ -n "$l" ] && echo "CHECK BY HAND before committing: VMID $id still appears in: $l"
 done
-tar -C /tmp -czf "$out.tar.gz" "$(basename "$out")" && echo "-> $out.tar.gz  ($(du -h "$out.tar.gz" | cut -f1)). Copy this file to the laptop: ~/pve-fleet/fixtures-in/"
+tar -C /tmp -czf "$out.tar.gz" "$(basename "$out")" && echo "-> $out.tar.gz  ($(du -h "$out.tar.gz" | cut -f1)). Copy this file to the laptop: ~/pve-fleet/fixtures-in/, then extract it under pve-fleet/captures/ (site data; never into roles/msp_checks/files/fixtures/)."

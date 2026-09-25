@@ -1,0 +1,15 @@
+##DEV /dev/sda
+##H 0
+smartctl 7.5 2025-04-30 r5714 [x86_64-linux-7.0.6-2-pve] (local build)
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+##A 0
+SMART Attributes Data Structure revision number: 1
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  9 Power_On_Hours          0x0032   087   087   000    Old_age   Always       -       63171
+##NV /dev/nvme0
+Smart Log for NVME device:nvme0 namespace-id:ffffffff
+critical_warning			: 0
+percentage_used				: 1%

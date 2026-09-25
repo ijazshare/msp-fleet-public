@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Read-only SNMP for the site's own NMS: one `extend` per check, plus the trap backend in msp-notify.
+# Polled on demand; nothing is pushed from here. See msp-snmp-state for the OIDs the NMS should read.
+sysLocation {{ msp_snmp_location }}
+sysContact {{ msp_snmp_contact }}
+sysServices 72
+agentaddress {{ msp_snmp_bind }}
+rocommunity {{ msp_snmp_rocommunity }} {{ msp_snmp_allowed }}
+dontLogTCPWrappersConnects yes
+{% for c in msp_checks | default([]) %}
+extend msp_{{ c }} /usr/local/bin/msp-snmp-state {{ c }}
+{% endfor %}

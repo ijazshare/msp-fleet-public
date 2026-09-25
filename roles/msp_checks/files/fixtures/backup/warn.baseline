@@ -1,0 +1,3 @@
+backup.paths = /mnt/backup/*
+backup.crit_age = 999999999999
+backup.warn_age = 1000

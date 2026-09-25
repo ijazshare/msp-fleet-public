@@ -1,0 +1,38 @@
+- name: Community set (an open agent is worse than no agent)
+  ansible.builtin.assert:
+    that: msp_snmp_rocommunity | length > 0
+    fail_msg: "msp_snmp is true but msp_snmp_rocommunity is empty; set a read-only community in group_vars/<site>.yml"
+
+- name: snmpd installed
+  ansible.builtin.apt:
+    name: snmpd
+    state: present
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: snmptrap available for the notification backend
+  ansible.builtin.apt:
+    name: snmp
+    state: present
+  when: msp_snmptrap_target | default('') != ''
+
+- name: State reader (runs as the unprivileged snmpd user; reads /var/lib/msp/state)
+  ansible.builtin.copy:
+    src: msp-snmp-state
+    dest: /usr/local/bin/msp-snmp-state
+    mode: "0755"
+
+- name: snmpd configuration (one `extend` per check)
+  ansible.builtin.template:
+    src: snmpd.conf.j2
+    dest: /etc/snmp/snmpd.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart snmpd
+
+- name: snmpd enabled and started
+  ansible.builtin.systemd:
+    name: snmpd
+    enabled: true
+    state: started

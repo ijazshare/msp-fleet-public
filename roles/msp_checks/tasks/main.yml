@@ -1,6 +1,6 @@
 - name: Packages
   ansible.builtin.apt:
-    name: [curl, bsdutils, util-linux, git]
+    name: [curl, bsdutils, util-linux, git, smartmontools]
     state: present
     update_cache: true
     cache_valid_time: 86400
@@ -19,12 +19,12 @@
     mode: preserve
   loop: [msp-lib.sh, checks, fixtures, tests]
 
-- name: Runner and alert
+- name: Runner, alert and notifier
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: /usr/local/bin/{{ item }}
     mode: "0755"
-  loop: [msp-run-check, msp-alert, msp-dump]
+  loop: [msp-run-check, msp-alert, msp-notify, msp-dump]
 
 - name: Effective baseline (defaults, then timers derived from msp_checks, then site overrides)
   ansible.builtin.set_fact:
@@ -38,7 +38,7 @@
     src: "{{ item }}.j2"
     dest: /etc/msp/{{ item }}
     mode: "0644"
-  loop: [msp.conf, baseline.conf, healthchecks.conf]
+  loop: [msp.conf, baseline.conf, healthchecks.conf, notify.conf]
 
 - name: Units
   ansible.builtin.template:

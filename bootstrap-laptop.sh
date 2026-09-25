@@ -9,7 +9,7 @@ set -euo pipefail
 ME=${SUDO_USER:?run with sudo from your normal user, not as root}
 SRC="/home/$ME/pve-fleet"; DST="/srv/pve-fleet"
 
-apt-get install -y tmux git python3-venv
+apt-get install -y tmux git python3-venv shellcheck
 
 getent group fleet >/dev/null || groupadd fleet
 id ops >/dev/null 2>&1 || adduser --disabled-password --gecos "fleet ops" ops
@@ -25,9 +25,10 @@ chgrp -R fleet "$DST"; chmod -R g+rwX "$DST"; find "$DST" -type d -exec chmod g+
 if [[ ! -x "$DST/.venv/bin/ansible-playbook" ]]; then
     python3 -m venv "$DST/.venv"
     "$DST/.venv/bin/pip" install -q --upgrade pip
-    "$DST/.venv/bin/pip" install -q ansible
+    "$DST/.venv/bin/pip" install -q ansible ansible-lint git-filter-repo
     chgrp -R fleet "$DST/.venv"; chmod -R g+rX "$DST/.venv"
 fi
+"$DST/.venv/bin/ansible-galaxy" collection install -q -r "$DST/requirements.yml"
 
 # ops's key. Passphrase is prompted; set one.
 if [[ ! -f /home/ops/.ssh/id_ed25519 ]]; then
@@ -47,13 +48,10 @@ export PATH=/srv/pve-fleet/bin:$PATH
 cd /srv/pve-fleet
 [ -n "$SSH_AUTH_SOCK" ] && ssh-add -l >/dev/null 2>&1 || { eval "$(ssh-agent -s)" >/dev/null; ssh-add; }
 EOF2
-# every push re-exports the public subset (bin/publish); a failed export never blocks the push itself
-cat > "$DST/.git/hooks/pre-push" <<'EOF2'
-#!/bin/sh
-bin/publish https://github.com/ijazshare/msp-fleet-public.git || echo "public export NOT updated: fix and run bin/publish by hand"
-exit 0
-EOF2
-chmod 755 "$DST/.git/hooks/pre-push"
+# hooks and the public export destination live in git config; the hook itself is tracked in .githooks/
+chmod 755 "$DST/.githooks/pre-push" 2>/dev/null || true
+git -C "$DST" config core.hooksPath .githooks
+git -C "$DST" config msp.publishDest https://github.com/ijazshare/msp-fleet-public.git
 
 cat <<MSG
 

@@ -1,0 +1,4 @@
+# Retired client, host and site names to scrub from the public export's history (one per line).
+# Names still in inventory/ are handled automatically; this file is for the ones that are gone from it
+# but still appear in old commits. Keep entries lowercase; never put a current client's real data here.
+SITE

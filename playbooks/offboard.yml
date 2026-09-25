@@ -1,0 +1,133 @@
+# Offboard a site: take the msp boundary off its hypervisors and stop everything msp on the site box.
+# The recordings, receipts and the configuration dump are KEPT unless msp_offboard_purge is true: the
+# boundary is what must go, and deleting evidence is a decision, not a side effect. The site box itself
+# is wiped by re-imaging it; this playbook only stops it and prints what to remove at the remote end.
+#   ap playbooks/offboard.yml -l SITE
+- name: "Site box: stop the checks (re-image it by hand afterwards)"
+  hosts: box
+  tasks:
+    - name: Installed msp timers on this node
+      ansible.builtin.shell: systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '{print $1}'
+      register: offboard_box_timers
+      changed_when: false
+      failed_when: false
+    - name: Stop and disable them
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      loop: "{{ offboard_box_timers.stdout_lines | default([]) }}"
+      when: item | length > 0
+      failed_when: false
+    - name: Files removed only with msp_offboard_purge
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/etc/msp, /usr/local/lib/msp, /usr/local/share/msp, /var/lib/msp, /var/spool/msp, /run/msp, /var/log/msp]
+      when: msp_offboard_purge | default(false)
+    - name: What remains
+      ansible.builtin.debug:
+        msg: >-
+          box: msp timers stopped. Re-image this box, remove its deploy key from
+          {{ msp_repo_url | default('the client repository') }}, then archive that repository.
+          {% if not (msp_offboard_purge | default(false)) %}
+          Recordings and the config dump are kept under /var/log/msp/rec and /var/lib/msp/dump.
+          {% endif %}
+
+- name: "Hypervisors: remove the boundary"
+  hosts: pve_hosts
+  handlers:
+    - name: reload-sshd
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded
+    - name: daemon-reload
+      ansible.builtin.systemd:
+        daemon_reload: true
+  tasks:
+    - name: Installed msp timers on this node
+      ansible.builtin.shell: systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '{print $1}'
+      register: offboard_timers
+      changed_when: false
+      failed_when: false
+    - name: Stop and disable them
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      loop: "{{ offboard_timers.stdout_lines | default([]) }}"
+      when: item | length > 0
+      failed_when: false
+    - name: The forced-command block goes first, so no account is ever keyed in without it
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/60-msp.conf
+        state: absent
+      notify: reload-sshd
+    - name: Agent account (and its home) is gone
+      ansible.builtin.user:
+        name: "{{ msp_agent_user | default('msp-agent') }}"
+        state: absent
+        remove: true
+    - name: Check units
+      ansible.builtin.file:
+        path: /etc/systemd/system/{{ item }}
+        state: absent
+      loop: [msp-check@.service, msp-check@.timer, msp-alert@.service]
+      notify: daemon-reload
+    - name: Timer drop-in directories
+      ansible.builtin.find:
+        paths: /etc/systemd/system
+        patterns: "msp-check@*.timer.d"
+        file_type: directory
+      register: offboard_dropins
+    - name: Remove them
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ offboard_dropins.files }}"
+    - name: Agent keys, sudoers line, dispatcher, stage, gate, recorder, helper, shared files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/ssh/msp_keys
+        - /etc/sudoers.d/msp
+        - /usr/local/bin/msp-dispatch
+        - /usr/local/bin/msp-stage
+        - /usr/local/bin/msp-redact
+        - /usr/local/bin/msp-rec
+        - /usr/local/sbin/msp-readverb
+        - /usr/local/sbin/msp-gate
+        - /usr/local/sbin/msp-shell
+        - /usr/local/share/msp
+        - /usr/local/lib/msp
+        - /run/msp
+        - /var/spool/msp
+    - name: SNMP agent we installed (only if this site had it)
+      when: msp_snmp | default(false)
+      block:
+        - name: Stop and disable snmpd
+          ansible.builtin.systemd:
+            name: snmpd
+            enabled: false
+            state: stopped
+          failed_when: false
+        - name: Our snmpd configuration
+          ansible.builtin.file:
+            path: /etc/snmp/snmpd.conf
+            state: absent
+    - name: "Full purge: configuration, state, recordings, retention rule"
+      when: msp_offboard_purge | default(false)
+      block:
+        - name: Remove everything msp ever wrote
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop: [/etc/msp, /var/lib/msp, /var/log/msp, /etc/tmpfiles.d/msp-rec.conf]
+    - name: What remains
+      ansible.builtin.debug:
+        msg: >-
+          boundary removed: no Match block, no msp-agent account, no dispatcher, gate or recorder.
+          {% if not (msp_offboard_purge | default(false)) %}
+          Recordings, receipts and the config dump are kept under /var/log/msp/rec and /var/lib/msp/dump.
+          {% endif %}

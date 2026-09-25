@@ -13,6 +13,12 @@ all:
           msp_healthchecks: {}
           msp_box_host: sandbox-box
           msp_never_stage: ["zpool destroy"]
+          msp_baseline: {time.allow_unsynced: true}   # containers are not NTP-synced
+          msp_snmp: true
+          msp_snmp_bind: udp:127.0.0.1:161
+          msp_snmp_rocommunity: public
+          msp_snmp_allowed: 127.0.0.1
+          msp_snmptrap_target: 127.0.0.1:1162
     box:
       vars:
         msp_checks_extra: [guarantee, scratch]
@@ -23,8 +29,14 @@ all:
           ansible_host: msp-sandbox
           site: sandbox
           msp_repo_url: /srv/fake-origin.git
-          msp_baseline: {systemd.expected_failed: systemd-modules-load.service}   # container artifact
+          msp_baseline: {systemd.expected_failed: systemd-modules-load.service, time.allow_unsynced: true}
           msp_never_stage: ["zpool destroy"]
           msp_box_host: sandbox-box
           msp_hc_base: http://127.0.0.1:8099
           msp_healthchecks: {heartbeat: hc-heartbeat, systemd: hc-systemd, disk: hc-disk, timers: hc-timers, _checker: hc-checker, configdump: hc-configdump}
+          msp_snmp: true
+          msp_snmp_bind: udp:127.0.0.1:161
+          msp_snmp_rocommunity: public
+          msp_snmp_allowed: 127.0.0.1
+          msp_webhook_url: http://127.0.0.1:8099/hook
+          msp_snmptrap_target: 127.0.0.1:1162

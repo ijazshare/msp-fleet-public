@@ -1,0 +1,12 @@
+Timezone=America/New_York
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Wed 2026-09-23 10:04:25 EDT
+RTCTimeUSec=Wed 2026-09-23 10:04:24 EDT
+Reference ID    : D8522373 (216.82.35.115)
+Stratum         : 3
+System time     : 0.000559857 seconds fast of NTP time
+Last offset     : -0.000023621 seconds
+Leap status     : Normal

@@ -1,7 +1,0 @@
-      VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID       
-       101 GATax-ProSeries      running    10240            240.00 2498      
-       102 SITE-dc1            running    3072              32.00 2556      
-       110 SITE-ws1            running    8192             250.00 2649      
-       111 SITE-ws2            running    8192             250.00 3652636   
-       300 win10-870evo         running    5120             210.00 4710      
-      9000 win11-template       stopped    8192             250.00 0         

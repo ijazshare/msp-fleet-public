@@ -1,0 +1,7 @@
+##DEV /dev/sda
+##H 24
+SMART overall-health self-assessment test result: FAILED
+##A 16
+SMART Attributes Data Structure revision number: 1
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  5 Reallocated_Sector_Ct   0x0033   030   030   036    Pre-fail  Always   FAILING_NOW 4096

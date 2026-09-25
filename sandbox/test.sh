@@ -10,11 +10,11 @@ t() { if [ "$1" = 0 ]; then echo "PASS  $2"; else echo "FAIL  $2"; fail=$((fail+
 x sh /usr/local/lib/msp/tests/run.sh >/tmp/fx.out 2>&1; r=$?
 t $r "fixtures on node: $(tail -n1 /tmp/fx.out)"
 
-# 2 three timers scheduled
+# 2 eleven timers scheduled
 n=$(x systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '$3=="active"' | wc -l)
-[ "$n" = 7 ]; t $? "7 timers active on the box (got $n)"
+[ "$n" = 11 ]; t $? "11 timers active on the box (got $n)"
 # from here on only explicit runs: the boot-time timer firings would interleave with the assertions
-alltimers() { for c in heartbeat systemd disk configdump guarantee scratch timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
+alltimers() { for c in heartbeat systemd disk smart zpool time backup configdump guarantee scratch timers; do x systemctl "$1" "msp-check@$c.timer"; done; }
 alltimers stop
 
 # 3 a check run writes state and a heartbeat
@@ -89,6 +89,31 @@ x sed -i '/^guests.exclude = 901 x$/d' /etc/msp/baseline.conf
 x sh -c 'rm -f /usr/local/bin/zfs /usr/local/bin/zpool /usr/local/bin/fakepve'
 x rm -rf /etc/pve
 
+# 9d the four new checks: smart (device set is host-dependent: OK or WARN), zpool absent, time allowed
+# unsynced, backup off until paths are configured
+x systemctl start msp-check@smart.service
+x grep -qE '^rc=(0|1)' /var/lib/msp/state/smart.state; t $? "smart check runs: $(x sed -n 's/^msg=//p' /var/lib/msp/state/smart.state | cut -c1-60)"
+x systemctl start msp-check@zpool.service
+x grep -q '^msg=OK zpool not installed' /var/lib/msp/state/zpool.state; t $? "zpool check is OK-off where zpool is absent"
+x systemctl start msp-check@time.service
+x grep -q '^msg=OK NTP synced' /var/lib/msp/state/time.state; t $? "time check runs (containers report NTPSynchronized=yes)"
+x systemctl start msp-check@backup.service
+x grep -q '^msg=OK no backup paths configured' /var/lib/msp/state/backup.state; t $? "backup check is off without paths"
+
+# 9e msp-notify fans one event out to every configured backend
+x sh -c 'printf "#!/bin/sh\nprintf \"%%s\\n\" \"\$*\" >> /tmp/snmptrap.log\n" > /usr/local/bin/snmptrap; chmod +x /usr/local/bin/snmptrap; rm -f /tmp/snmptrap.log'
+x sh -c '/usr/local/bin/msp-notify disk 2 "CRIT notify probe" fail 1'
+x grep -q '^POST /hc-disk/fail CRIT notify probe' /var/log/msp/hc-fake.log; t $? "notify: healthchecks page still sent"
+x grep -q '"check":"disk"' /var/log/msp/hc-fake.log && x grep -q '"rc":2' /var/log/msp/hc-fake.log; t $? "notify: webhook JSON posted"
+x grep -q '1.3.6.1.4.1.8072.9999.1.2 s disk' /tmp/snmptrap.log; t $? "notify: snmptrap carries the check name"
+
+# 9f msp_snmp: snmpd serves the check states to an NMS on the site LAN, read-only
+x systemctl is-active --quiet snmpd; t $? "snmpd active on the box"
+x sh -c 'out=$(msp-snmp-state disk); echo "$out rc=$?"' | grep -q 'rc=0'; t $? "msp-snmp-state prints the state and exits its rc"
+x sh -c 'snmpwalk -v2c -c public -On -t 2 127.0.0.1 1.3.6.1.4.1.8072.1.3.2.3.1.2' | grep -q 'STRING: "OK'; t $? "NMS reads the check message (nsExtendOutputFull)"
+x sh -c 'snmpwalk -v2c -c public -On -t 2 127.0.0.1 1.3.6.1.4.1.8072.1.3.2.3.1.4' | grep -q 'INTEGER: 0'; t $? "NMS reads the check rc (nsExtendOutput1Exit)"
+x sh -c 'snmpget -v2c -c wrong -t 1 -r 0 -On 127.0.0.1 1.3.6.1.2.1.1.1.0 >/dev/null 2>&1; [ $? != 0 ]'; t $? "wrong SNMP community refused"
+
 # 11 msp_box: llm user, no sudo, launcher, repo, rules file, memory in repo, scratch tmpfs
 x id -nG llm | grep -qvE 'sudo|adm'; t $? "llm user exists and is in no privileged group ($(x id -nG llm))"
 x sh -c 'command -v sudo >/dev/null && sudo -l -U llm 2>/dev/null | grep -q "may run" && exit 1; exit 0'; t $? "llm has no sudo rules"
@@ -119,7 +144,6 @@ x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
 # 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.
 h() { docker exec msp-sandbox-host "$@"; }
 docker cp sandbox/gate-approve.py msp-sandbox-host:/usr/local/bin/gate-approve.py >/dev/null
-B='su -s /bin/sh -c'
 m() { x su -s /bin/sh -c "msp host '$*'" llm 2>&1; }             # as the LLM would: msp HOST VERB
 mc() { x su -s /bin/sh -c "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i /home/llm/.ssh/msp_cron msp-agent@msp-sandbox-host $*" llm 2>&1; }
 x su -s /bin/sh -c 'grep -q msp-sandbox-host /home/llm/.ssh/known_hosts' llm; t $? "box learned the hypervisor host key from Ansible (no trust-on-first-use)"
@@ -170,6 +194,11 @@ m 'stage DESTRUCTIVE -- /bin/echo 100' >/dev/null
 o=$(h gate-approve.py 999); echo "$o" | grep -q 'target mismatch'; t $? "DESTRUCTIVE: wrong target id aborts"
 m 'stage DESTRUCTIVE -- /bin/echo 100' >/dev/null
 o=$(h gate-approve.py 100); echo "$o" | grep -q 'RESULT rc=0'; t $? "DESTRUCTIVE: typed target id runs"
+plantd() { h sh -c "printf 'DESTRUCTIVE\\n%s\\n%s\\n' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '$1' > /var/spool/msp/staged"; }
+plantd "echo  100"
+o=$(h gate-approve.py ""); echo "$o" | grep -q 'target ID must be one non-empty word'; t $? "DESTRUCTIVE: empty target aborts even with a double space in the command"
+plantd "/bin/echo 999"
+o=$(h gate-approve.py 9); echo "$o" | grep -q 'target mismatch'; t $? "DESTRUCTIVE: a substring of the target id does not approve"
 h sh -c 'printf "SAFE\n2000-01-01T00:00:00Z\n/bin/echo old\n" > /var/spool/msp/staged'
 h msp-gate pending | grep -q 'EXPIRED'; t $? "pending reports an expired stage as expired"
 o=$(h gate-approve.py); echo "$o" | grep -q EXPIRED; t $? "expired stage discarded"

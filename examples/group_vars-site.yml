@@ -1,6 +1,15 @@
-# Copy to group_vars/<site>.yml. Everything client-specific lives here and nowhere else.
+# Copy to group_vars/<site>.yml (bin/new-site does it for you). Everything client-specific lives here.
 msp_baseline:
   guests.exclude: ""                # VMIDs that must never appear in any dump, state file, read or note
+  # disk.warn: 80                   # filesystem thresholds (%)
+  # disk.crit: 90
+  # smart.wear_warn: 90             # NVMe percentage_used that is a WARN
+  # time.warn_ms: 200               # chrony offset thresholds
+  # time.crit_ms: 2000
+  # time.allow_unsynced: "false"
+  # backup.paths: /mnt/backup/*     # newest file under these dirs/globs; empty = check off
+  # backup.warn_age: 93600
+  # backup.crit_age: 180000
 msp_repo_url: git@github.com:ORG/CLIENT-REPO.git   # the client's own record; the box pushes session notes there
 msp_never_stage:                    # never staged, whatever the label (case-insensitive substring match)
   - "zpool destroy"
@@ -11,3 +20,10 @@ msp_client_rules: |
   Site rules for the AI, appended to AGENTS.md. Say what is production, what is a lab, what is never touched.
 msp_operator_pubkeys:               # who may open the Exec seat; receipts name the approver by the key's comment
   - "ssh-ed25519 AAAA... ops@laptop"
+# Notification and on-site monitoring (all optional; Healthchecks pings are the default):
+# msp_webhook_url: https://...                     # JSON POST on every event
+# msp_snmptrap_target: 192.0.2.1                   # SNMPv2c trap on a page or a state change
+# msp_snmp: true                                   # read-only SNMP agent for the client's NMS
+# msp_snmp_bind: udp:192.0.2.1:161
+# msp_snmp_rocommunity: <community>
+# msp_snmp_allowed: 192.0.2.1/24

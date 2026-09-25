@@ -9,7 +9,7 @@ umask 077
 mkdir -p "$D" || exit 3
 cd "$D" || exit 3
 [ -d .git ] || { git init -q . && git config user.name msp-dump && git config user.email msp-dump@localhost; } || exit 3
-rm -rf "$D/etc" "$D/cmd"; mkdir -p "$D/etc" "$D/cmd"
+rm -rf "${D:?}/etc" "${D:?}/cmd"; mkdir -p "$D/etc" "$D/cmd"
 
 # files: copied only if they exist; directories copied whole
 for p in /etc/hostname /etc/hosts /etc/fstab /etc/resolv.conf /etc/network/interfaces /etc/network/interfaces.d \
