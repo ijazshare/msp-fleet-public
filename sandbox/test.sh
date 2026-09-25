@@ -141,8 +141,36 @@ x su -s /bin/sh -c 'cd "$(cat ~/.msp-repo)" && b=$(git symbolic-ref --short HEAD
 x su -s /bin/sh -c 'cd "$(cat ~/.msp-repo)" && test -z "$(git status --porcelain)" && ! git rev-parse -q --verify msp-noupstream >/dev/null && msp-end --check' llm 2>&1 | grep -q 'session complete'; t $? "and the repo is left as found"
 x su -s /bin/sh -c 'tmux kill-server' llm 2>/dev/null
 
-# 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.
+# 14 broker proxmox adapter: approved changes cross the existing restricted host path, exact argv only
 h() { docker exec msp-sandbox-host "$@"; }
+docker cp sandbox/fakepve msp-sandbox-host:/usr/local/bin/fakepve >/dev/null
+h sh -c 'for n in qm pct zpool; do ln -sf fakepve /usr/local/bin/$n; done; rm -f /tmp/fakepve.log'
+x systemctl restart msp-broker
+i=0; while [ $i -lt 60 ] && ! x test -S /run/msp/broker.sock; do i=$((i+1)); sleep 0.5; done
+x test -S /run/msp/broker.sock; t $? "broker socket is back after restart"
+x su -s /bin/sh -c 'msp-read proxmox.vms' llm | grep -q keep; t $? "broker reads live guests through the host"
+nid=$(x su -s /bin/sh -c 'msp-read inventory' llm | grep -o '"id": "node_[a-z0-9_]*"' | head -1 | cut -d'"' -f4)
+vpid=$(x su -s /bin/sh -c 'msp-action propose vm.start --target vm_100' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+[ -n "$vpid" ]; t $? "llm proposes a proxmox change ($vpid)"
+h sh -c '! grep -q "qm start" /tmp/fakepve.log 2>/dev/null'; t $? "no approval: the host was not touched"
+x su -s /bin/sh -c "msp-approve --approve $vpid" tech | grep -q SUCCEEDED; t $? "approved proxmox change executes"
+h grep -q 'qm start 100' /tmp/fakepve.log; t $? "the host ran the exact approved argv"
+x su -s /bin/sh -c 'msp-action propose vm.start --target "vm_100;id"' llm 2>&1 | grep -q 'unknown target'; t $? "target injection refused"
+spid=$(x su -s /bin/sh -c 'msp-action propose vm.stop --target vm_100' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+x su -s /bin/sh -c "msp-approve --approve $spid --confirm 'STOP vm_100'" tech 2>&1 | grep -q 'confirmation does not match'; t $? "wrong semantic confirmation refused"
+x su -s /bin/sh -c "msp-approve --approve $spid --confirm 'STOP keep'" tech | grep -q SUCCEEDED; t $? "correct semantic confirmation executes"
+h grep -q 'qm stop 100' /tmp/fakepve.log; t $? "hard stop reached the host as qm stop 100"
+if [ -n "$nid" ]; then
+  upid=$(x su -s /bin/sh -c "msp-action propose service.restart --target $nid --param unit=evil" llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+  x su -s /bin/sh -c "msp-approve --approve $upid" tech | grep -q FAILED; t $? "unlisted unit fails at the host allowlist"
+fi
+x su -s /bin/sh -c 'printf "#!/bin/sh\necho host-frozen\n" > /tmp/msp-host-fix.sh' llm
+hpid=$(x su -s /bin/sh -c 'msp-action propose-script --target vm_100 --interpreter sh --file /tmp/msp-host-fix.sh --purpose "host script"' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+x su -s /bin/sh -c "msp-approve --approve $hpid --confirm 'APPROVE keep'" tech | grep -q SUCCEEDED; t $? "frozen script approved for the host"
+x grep -q host-frozen "/var/lib/msp-broker/receipts/$hpid.json"; t $? "frozen script ran on the host through run-script"
+h sh -c 'rm -f /usr/local/bin/qm /usr/local/bin/pct /usr/local/bin/zpool /tmp/fakepve.log'
+
+# 12 item 5: the gate. h = the hypervisor container; box reaches it as msp-agent over ssh.
 docker cp sandbox/gate-approve.py msp-sandbox-host:/usr/local/bin/gate-approve.py >/dev/null
 m() { x su -s /bin/sh -c "msp host '$*'" llm 2>&1; }             # as the LLM would: msp HOST VERB
 mc() { x su -s /bin/sh -c "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i /home/llm/.ssh/msp_cron msp-agent@msp-sandbox-host $*" llm 2>&1; }

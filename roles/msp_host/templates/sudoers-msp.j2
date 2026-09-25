@@ -1,2 +1,3 @@
-# {{ ansible_managed }}. One helper, no wildcards; the helper validates its own arguments.
+# {{ ansible_managed }}. Two helpers, no wildcards; each helper validates its own arguments.
 {{ msp_agent_user }} ALL=(root) NOPASSWD: /usr/local/sbin/msp-readverb
+{{ msp_agent_user }} ALL=(root) NOPASSWD: /usr/local/sbin/msp-execverb

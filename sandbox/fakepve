@@ -1,6 +1,7 @@
 #!/bin/sh
 # fakepve: stand-in for qm, pct, zfs, pvesh, proxmox-backup-manager and friends (dispatch on the name it is
 # called by), so test.sh can plant guests on the PVE-less sandbox hypervisor. 100 = keep, 97531/97532 = hidden.
+echo "${0##*/} $*" >> /tmp/fakepve.log 2>/dev/null || true
 case ${0##*/} in
   qm)  case ${1:-} in
          list) printf '      VMID NAME                 STATUS     MEM(MB)    BOOTDISK(GB) PID\n       100 keep                 running    2048              32.00 11\n     97531 hide-vm              running    2048              32.00 12\n';;

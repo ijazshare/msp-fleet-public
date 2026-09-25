@@ -23,7 +23,7 @@ _SCRIPT_KEYS = {
     "forbidden_patterns",
 }
 _PLANS_KEYS = {"enabled", "max_steps"}
-_ADAPTER_KEYS = {"enabled", "operations"}
+_ADAPTER_KEYS = {"enabled", "operations", "host", "user", "key", "known_hosts"}
 
 
 class ConfigError(Exception):
@@ -112,6 +112,11 @@ def load_policy(path):
         ops = cfg.get("operations")
         if not isinstance(ops, list) or not all(isinstance(o, str) and o for o in ops):
             raise ConfigError("%s: adapter %s operations must be a list" % (path, name))
+        if name == "proxmox" and cfg.get("enabled") is True:
+            for key in ("host", "user", "key", "known_hosts"):
+                value = cfg.get(key)
+                if not isinstance(value, str) or not value:
+                    raise ConfigError("%s: adapter proxmox needs %s" % (path, key))
     script = policy.get("script", {"enabled": False})
     if not isinstance(script, dict) or set(script) - _SCRIPT_KEYS:
         raise ConfigError("%s: script has invalid keys" % path)

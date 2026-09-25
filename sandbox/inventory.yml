@@ -14,6 +14,7 @@ all:
           msp_box_host: sandbox-box
           msp_never_stage: ["zpool destroy"]
           msp_baseline: {time.allow_unsynced: true}   # containers are not NTP-synced
+          msp_service_allowlist: [smbd]                # the broker may restart only these units
           msp_snmp: true
           msp_snmp_bind: udp:127.0.0.1:161
           msp_snmp_rocommunity: public
@@ -40,6 +41,9 @@ all:
             - {id: dev_2, kind: mock, name: MOCK-TWO, adapter: mock, external_id: m2}
           msp_broker_adapters:
             mock: {enabled: true, operations: [mock.echo, mock.noop, mock.fail, mock.sleep, mock.halt]}
+            proxmox: {enabled: true, operations: [vm.start, vm.shutdown, vm.reboot, vm.stop, ct.start, ct.shutdown, ct.reboot, ct.stop, zpool.scrub, service.restart]}
+          msp_broker_proxmox_host: msp-sandbox-host
+          msp_broker_proxmox_target: sandbox-host
           msp_broker_script:
             enabled: true
             max_bytes: 65536

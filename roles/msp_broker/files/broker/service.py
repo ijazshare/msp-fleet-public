@@ -323,7 +323,10 @@ class BrokerService:
             cfg = self.policy["adapters"].get(adapter_name)
             if not cfg or not cfg.get("enabled"):
                 raise Refused("adapter is not enabled: %s" % adapter_name)
-            return self._adapter(adapter_name).read(self.client, sub, args)
+            try:
+                return self._adapter(adapter_name).read(self.client, sub, args)
+            except AdapterError as exc:
+                raise Refused(str(exc))
         raise Refused("unknown read verb: %s" % verb)
 
     def list_proposals(self, actor, limit=20):

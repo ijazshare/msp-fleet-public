@@ -1,3 +1,6 @@
 # {{ ansible_managed }}. role= tags are read by msp-dispatch; the cron key can never stage.
 restrict {{ msp_agent_pubkeys.interactive }} role=interactive
 restrict {{ msp_agent_pubkeys.cron }} role=cron
+{% if msp_broker_pubkey | default('') | length > 0 %}
+restrict {{ msp_broker_pubkey }} role=broker
+{% endif %}

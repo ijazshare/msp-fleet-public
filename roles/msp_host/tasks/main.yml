@@ -35,6 +35,7 @@
     - {src: msp-redact, dest: /usr/local/bin/msp-redact}
     - {src: msp-rec, dest: /usr/local/bin/msp-rec}
     - {src: msp-readverb, dest: /usr/local/sbin/msp-readverb}
+    - {src: msp-execverb, dest: /usr/local/sbin/msp-execverb}
     - {src: msp-gate, dest: /usr/local/sbin/msp-gate}
     - {src: msp-shell, dest: /usr/local/sbin/msp-shell}
 
@@ -76,6 +77,8 @@
   loop:
     - {name: never.list, list: "{{ msp_never_stage }}"}
     - {name: deny.list, list: "{{ msp_deny_stage }}"}
+    - {name: service.allowlist, list: "{{ msp_service_allowlist }}"}
+    - {name: interpreter.allowlist, list: "{{ msp_interpreter_allowlist }}"}
 
 - name: Spool and recording directories
   ansible.builtin.file:
@@ -106,11 +109,23 @@
   loop: [interactive, cron]
   when: msp_box_host != ""
 
+- name: Broker public key, read from the box (root-owned; only the broker uses it)
+  ansible.builtin.slurp:
+    src: /etc/msp/secrets/proxmox_key.pub
+  delegate_to: "{{ msp_box_host }}"
+  register: broker_pub
+  when: msp_box_host != ""
+  failed_when: false
+
 - name: Agent keys as a local fact
   ansible.builtin.set_fact:
     msp_agent_pubkeys:
       interactive: "{{ (box_pub.results[0].content | b64decode).split()[0:2] | join(' ') }}"
       cron: "{{ (box_pub.results[1].content | b64decode).split()[0:2] | join(' ') }}"
+    msp_broker_pubkey: >-
+      {%- if broker_pub.content is defined -%}
+      {{ (broker_pub.content | b64decode).split()[0:2] | join(' ') }}
+      {%- else -%}{%- endif -%}
   when: msp_box_host != ""
 
 - name: Agent keys file (root-owned, outside the agent's home)

@@ -5,6 +5,11 @@ msp_broker_ttl_seconds: 300
 msp_broker_approvers: []            # Unix accounts allowed to approve; they join msp-approvers
 msp_broker_approver_pubkeys: []     # authorized keys for those accounts (same order is not required)
 msp_broker_inventory: []            # seed entries: id, kind, name, adapter, external_id, attrs
+msp_broker_proxmox_host: ""         # address of the site's gated hypervisor; empty disables the adapter
+msp_broker_proxmox_target: ""       # inventory host name of that hypervisor (its host key is read there)
+msp_broker_proxmox_user: msp-agent
+msp_broker_proxmox_key: /etc/msp/secrets/proxmox_key
+msp_broker_proxmox_known_hosts: /etc/msp/known_hosts
 msp_broker_adapters:
   mock:
     enabled: false

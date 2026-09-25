@@ -5,9 +5,9 @@
       - msp_broker_client_name | length > 0
     fail_msg: "set msp_broker_client_id and msp_broker_client_name in group_vars/<site>.yml"
 
-- name: Python for the broker
+- name: Python and ssh for the broker
   ansible.builtin.apt:
-    name: [python3]
+    name: [python3, openssh-client]
     state: present
 
 - name: Approver and broker socket groups
@@ -71,6 +71,60 @@
     group: root
     mode: "0755"
   loop: [msp-action, msp-read, msp-approve, msp-brokerd]
+
+- name: Broker key to the hypervisors (root-only; the llm user can never read it)
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C "broker@{{ inventory_hostname }}" -f {{ msp_broker_proxmox_key }}
+    creates: "{{ msp_broker_proxmox_key }}"
+
+- name: Broker key permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - "{{ msp_broker_proxmox_key }}"
+    - "{{ msp_broker_proxmox_key }}.pub"
+
+- name: Hypervisor host key, pinned before the broker ever connects
+  when: msp_broker_proxmox_target != '' and msp_broker_proxmox_host != ''
+  block:
+    - name: Read the hypervisor host key
+      ansible.builtin.slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      delegate_to: "{{ msp_broker_proxmox_target }}"
+      register: broker_hostkey
+    - name: known_hosts for the broker (no trust on first use)
+      ansible.builtin.known_hosts:
+        path: "{{ msp_broker_proxmox_known_hosts }}"
+        name: "{{ msp_broker_proxmox_host }}"
+        key: "{{ msp_broker_proxmox_host }} {{ (broker_hostkey.content | b64decode).split()[0:2] | join(' ') }}"
+    - name: known_hosts is world-readable (no secrets in it)
+      ansible.builtin.file:
+        path: "{{ msp_broker_proxmox_known_hosts }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+- name: Proxmox adapter needs its connection details
+  ansible.builtin.assert:
+    that:
+      - msp_broker_proxmox_host | length > 0
+      - msp_broker_proxmox_target | length > 0
+    fail_msg: "set msp_broker_proxmox_host and msp_broker_proxmox_target in group_vars/<site>.yml"
+  when: msp_broker_adapters.proxmox is defined and msp_broker_adapters.proxmox.enabled | default(false)
+
+- name: Policy adapters, with the proxmox connection folded in
+  ansible.builtin.set_fact:
+    msp_broker_policy_adapters: >-
+      {%- if msp_broker_adapters.proxmox is defined -%}
+      {{ msp_broker_adapters | combine({'proxmox': msp_broker_adapters.proxmox | combine({
+           'host': msp_broker_proxmox_host, 'user': msp_broker_proxmox_user,
+           'key': msp_broker_proxmox_key, 'known_hosts': msp_broker_proxmox_known_hosts})}) }}
+      {%- else -%}
+      {{ msp_broker_adapters }}
+      {%- endif -%}
 
 - name: Client identity file
   ansible.builtin.template:

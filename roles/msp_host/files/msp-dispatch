@@ -15,10 +15,16 @@ case $cmd in *[!A-Za-z0-9\ ._:@/=,+-]*) refuse "characters outside [A-Za-z0-9 ._
 set -f; set -- $cmd; set +f
 verb=$1; shift
 case $verb in
-  status|qm-list|pct-list|zpool-status|zfs-list|pvesm-status|pveversion|df|read-state|read-receipts|read-new|read-all|journal|qm-config|pct-config|qm-pending)
+  status|qm-list|pct-list|zpool-status|zfs-list|pvesm-status|pveversion|df|read-state|read-receipts|read-new|read-all|journal|qm-config|pct-config|qm-pending|qm-status|pct-status|service-status)
     exec sudo -n /usr/local/sbin/msp-readverb "$verb" "$@" ;;
   stage)
     [ "$role" = interactive ] || refuse "cron key cannot stage"
     exec /usr/local/bin/msp-stage "$@" ;;
+  exec)
+    [ "$role" = broker ] || refuse "only the broker key may execute"
+    exec sudo -n /usr/local/sbin/msp-execverb "$@" ;;
+  run-script)
+    [ "$role" = broker ] || refuse "only the broker key may run scripts"
+    exec sudo -n /usr/local/sbin/msp-execverb run-script "$@" ;;
   *) refuse "unknown verb: $verb" ;;
 esac

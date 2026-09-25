@@ -39,7 +39,7 @@ def seed_inventory(paths, client, store):
     store.inventory_upsert(clean)
 
 
-def build_service(paths=None, clock=utcnow):
+def build_service(paths=None, clock=utcnow, runner=None):
     paths = paths or Paths()
     policy = load_policy(paths.policy)
     client = load_client(paths.client_conf)
@@ -52,6 +52,12 @@ def build_service(paths=None, clock=utcnow):
     if policy["adapters"].get("mock", {}).get("enabled"):
         adapters["mock"] = MockAdapter(paths)
     if policy["adapters"].get("proxmox", {}).get("enabled"):
+        from .adapters import AdapterError
         from .proxmox import ProxmoxAdapter
-        adapters["proxmox"] = ProxmoxAdapter(paths, policy)
+        adapter = ProxmoxAdapter(paths, policy, runner=runner, store=store)
+        adapters["proxmox"] = adapter
+        try:
+            adapter.sync_inventory(client, store)
+        except AdapterError:
+            pass
     return BrokerService(paths, policy, client, store, adapters, clock=clock)

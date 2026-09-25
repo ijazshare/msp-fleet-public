@@ -19,7 +19,11 @@ case $verb in
   pct-list)      have pct; pct list | hide | red ;;
   qm-config)     vmid "${1:-}"; have qm;  qm config "$1" | red ;;
   qm-pending)    vmid "${1:-}"; have qm;  qm pending "$1" | red ;;
+  qm-status)     vmid "${1:-}"; have qm;  qm status "$1" | red ;;
   pct-config)    vmid "${1:-}"; have pct; pct config "$1" | red ;;
+  pct-status)    vmid "${1:-}"; have pct; pct status "$1" | red ;;
+  service-status) unit=${1:-}; case $unit in ''|*[!A-Za-z0-9@._:-]*) refuse "unit name";; esac
+                 have systemctl; systemctl is-active "$unit" | red ;;
   zpool-status)  have zpool; zpool status | red ;;
   zfs-list)      have zfs; zfs list -o name,used,avail,refer,mountpoint,mounted | hide | red ;;
   pvesm-status)  have pvesm; pvesm status | red ;;
