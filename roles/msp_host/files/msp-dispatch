@@ -4,7 +4,7 @@
 set -u
 refuse() { echo "refused: $1"; exit 2; }
 auth=${SSH_USER_AUTH:-}
-[ -n "$auth" ] && [ -r "$auth" ] || refuse "no auth info"
+if [ -z "$auth" ] || [ ! -r "$auth" ]; then refuse "no auth info"; fi
 pub=$(sed -n 's/^publickey //p' "$auth" | head -n 1 | cut -d' ' -f1-2)
 [ -n "$pub" ] || refuse "no public key in auth info"
 role=$(grep -F -- "$pub" /etc/ssh/msp_keys/msp-agent | sed -n 's/.*[[:space:]]role=\([a-z]*\)$/\1/p' | head -n 1)

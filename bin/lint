@@ -1,6 +1,6 @@
 #!/bin/sh
 # bin/lint: shellcheck every shell script in the repo, then ansible-lint (.ansible-lint pins the profile).
-# shellcheck comes from apt and ansible-lint from .venv (both installed by bootstrap-laptop.sh).
+# ShellCheck (from apt) and ansible-lint (from .venv) are installed by bootstrap-laptop.sh.
 #   bin/lint                          fail on any finding
 #   LINT_SKIP_MISSING=1 bin/lint      warn and skip a tool that is not installed
 set -u
