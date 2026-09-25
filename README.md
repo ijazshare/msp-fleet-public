@@ -31,8 +31,11 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
    `msp-approvers`) approves with `msp-approve`; the broker revalidates the target state and the frozen hash,
    executes the exact argv once and writes a root-owned receipt. The AI has no host credentials and cannot
    approve its own proposal. The staged-command gate stays as the host-side boundary (defense in depth): the
-   broker reaches a hypervisor only through a dedicated `role=broker` key, and `msp-execverb` on the host
-   accepts only registered operations, allowlisted units and allowlisted interpreters.
+   broker reaches a hypervisor only through a dedicated per-site `role=broker` key (generated on that site's
+   box, registered only on that site's hosts, pinned to the box's address when the inventory carries an IP),
+   and the host side bounds it twice: `msp-dispatch` lets the broker key run only adapter reads, `exec` and
+   `run-script`, and `msp-execverb` accepts only operations listed for this site in
+   `/etc/msp/exec.allowlist` (empty refuses everything), allowlisted units and allowlisted interpreters.
 
 ## Layout
 

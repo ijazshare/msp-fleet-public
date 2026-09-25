@@ -327,10 +327,14 @@ runs the frozen copy, never the scratch file, under a broker-enforced timeout, a
 no step may change after approval.
 
 **Second boundary on the host.** The broker reaches a gated hypervisor with a dedicated `role=broker` key
-(`/etc/msp/secrets/proxmox_key`). `msp-dispatch` refuses `exec`/`run-script` for every other role; `msp-execverb`
-validates every argument and accepts only `qm`/`pct` start/shutdown/reboot/stop, `zpool scrub`, `systemctl
+(`/etc/msp/secrets/proxmox_key`), generated on that site's own box, registered only on that site's hosts and
+pinned with `from="<box address>"` whenever the inventory carries an IP. The key is narrower than the
+interactive key: `msp-dispatch` lets it run only the adapter reads, `exec` and `run-script`. `msp-execverb`
+then validates every argument and accepts only `qm`/`pct` start/shutdown/reboot/stop, `zpool scrub`, `systemctl
 restart` for units in `/etc/msp/service.allowlist`, and scripts only for interpreters in
-`/etc/msp/interpreter.allowlist`. The host never shells out.
+`/etc/msp/interpreter.allowlist`. Every operation must also appear in `/etc/msp/exec.allowlist`, the site's
+opt-in list (`vm.start`, `ct.stop`, `zpool.scrub`, `service.restart`, `script.run`, ...); the file empty or
+missing refuses everything, so a site enables exactly the operations it wants. The host never shells out.
 
 **Implemented and tested (2026-09-25).** Phases 1–3: broker core with a mock adapter; Proxmox adapter (known
 actions, reads, preconditions) over the existing host path; complex script mode and frozen plans. 53 unit tests

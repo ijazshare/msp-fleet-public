@@ -79,6 +79,7 @@
     - {name: deny.list, list: "{{ msp_deny_stage }}"}
     - {name: service.allowlist, list: "{{ msp_service_allowlist }}"}
     - {name: interpreter.allowlist, list: "{{ msp_interpreter_allowlist }}"}
+    - {name: exec.allowlist, list: "{{ msp_broker_operations }}"}
 
 - name: Spool and recording directories
   ansible.builtin.file:
@@ -127,6 +128,13 @@
       {{ (broker_pub.content | b64decode).split()[0:2] | join(' ') }}
       {%- else -%}{%- endif -%}
   when: msp_box_host != ""
+
+- name: Broker key pinned to the box's address when the inventory carries an IP
+  ansible.builtin.set_fact:
+    msp_broker_from: "{{ hostvars[msp_box_host].ansible_host }}"
+  when:
+    - msp_box_host != ""
+    - (hostvars[msp_box_host].ansible_host | default('')) is match('^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
 
 - name: Agent keys file (root-owned, outside the agent's home)
   ansible.builtin.template:

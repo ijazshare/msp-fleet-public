@@ -165,6 +165,13 @@ if [ -n "$nid" ]; then
   upid=$(x su -s /bin/sh -c "msp-action propose service.restart --target $nid --param unit=evil" llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
   x su -s /bin/sh -c "msp-approve --approve $upid" tech | grep -q FAILED; t $? "unlisted unit fails at the host allowlist"
 fi
+# the site's operation allowlist on the host is a second boundary: ct.start is not in it here
+ctpid=$(x su -s /bin/sh -c 'msp-action propose ct.start --target ct_97532' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+[ -n "$ctpid" ]; t $? "ct.start is proposeable (broker policy allows it)"
+x su -s /bin/sh -c "msp-approve --approve $ctpid" tech | grep -q FAILED; t $? "operation outside the site allowlist fails at the host"
+h grep -q 'pct start' /tmp/fakepve.log; [ $? != 0 ]; t $? "the refused operation never reached the hypervisor"
+# the broker key cannot use the interactive key's verbs
+x sh -c 'ssh -i /etc/msp/secrets/proxmox_key -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/msp/known_hosts msp-agent@msp-sandbox-host read-all' 2>&1 | grep -q 'broker key may only'; t $? "broker key cannot read recordings"
 x su -s /bin/sh -c 'printf "#!/bin/sh\necho host-frozen\n" > /tmp/msp-host-fix.sh' llm
 hpid=$(x su -s /bin/sh -c 'msp-action propose-script --target vm_100 --interpreter sh --file /tmp/msp-host-fix.sh --purpose "host script"' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
 x su -s /bin/sh -c "msp-approve --approve $hpid --confirm 'APPROVE keep'" tech | grep -q SUCCEEDED; t $? "frozen script approved for the host"

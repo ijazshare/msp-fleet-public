@@ -10,29 +10,35 @@ case $excl in *[!0-9\ ]*) excl=BAD;; esac
 vmid() { case ${1:-} in ''|0*|*[!0-9]*) refuse "vmid must be digits";; esac
          [ "$excl" = BAD ] && refuse "guests.exclude unreadable"; for e in $excl; do [ "$e" = "$1" ] && refuse "vmid excluded at this site"; done; }
 have() { command -v "$1" >/dev/null 2>&1 || { echo "not available on this host: $1"; exit 0; }; }
+allow() { grep -qxF -- "$1" /etc/msp/exec.allowlist 2>/dev/null || refuse "operation not in this site's allowlist: $1"; }
 case $verb in
   qm)
     action=${1:-}; vmid "${2:-}"
     case $action in start|shutdown|reboot|stop) ;; *) refuse "unknown qm action: $action";; esac
+    allow "vm.$action"
     have qm; exec qm "$action" "$2" ;;
   pct)
     action=${1:-}; vmid "${2:-}"
     case $action in start|shutdown|reboot|stop) ;; *) refuse "unknown pct action: $action";; esac
+    allow "ct.$action"
     have pct; exec pct "$action" "$2" ;;
   zpool)
     action=${1:-}; pool=${2:-}
     [ "$action" = scrub ] || refuse "only zpool scrub is registered"
+    allow "zpool.scrub"
     case $pool in ''|*[!A-Za-z0-9._:-]*) refuse "pool name";; esac
     have zpool; zpool list "$pool" >/dev/null 2>&1 || refuse "unknown pool: $pool"
     exec zpool scrub "$pool" ;;
   systemctl)
     action=${1:-}; unit=${2:-}
     [ "$action" = restart ] || refuse "only systemctl restart is registered"
+    allow "service.restart"
     case $unit in ''|*[!A-Za-z0-9@._:-]*) refuse "unit name";; esac
     grep -qxF -- "$unit" /etc/msp/service.allowlist 2>/dev/null || refuse "unit not in the allowlist: $unit"
     exec systemctl restart "$unit" ;;
   run-script)
     interp=${1:-}; tmo=${2:-}
+    allow "script.run"
     case $interp in ''|*[!A-Za-z0-9/_.-]*) refuse "interpreter";; esac
     grep -qxF -- "$interp" /etc/msp/interpreter.allowlist 2>/dev/null || refuse "interpreter not in the allowlist: $interp"
     case $tmo in ''|*[!0-9]*) refuse "timeout must be seconds";; esac

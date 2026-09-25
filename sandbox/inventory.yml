@@ -15,6 +15,7 @@ all:
           msp_never_stage: ["zpool destroy"]
           msp_baseline: {time.allow_unsynced: true}   # containers are not NTP-synced
           msp_service_allowlist: [smbd]                # the broker may restart only these units
+          msp_broker_operations: [vm.start, vm.reboot, vm.stop, service.restart, script.run]   # ct.* deliberately absent
           msp_snmp: true
           msp_snmp_bind: udp:127.0.0.1:161
           msp_snmp_rocommunity: public

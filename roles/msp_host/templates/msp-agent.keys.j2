@@ -1,6 +1,8 @@
 # {{ ansible_managed }}. role= tags are read by msp-dispatch; the cron key can never stage.
+# The broker key is per-site (generated on this site's box), pinned to the box's address when known, and
+# accepted only for the adapter reads, registered exec operations and frozen scripts.
 restrict {{ msp_agent_pubkeys.interactive }} role=interactive
 restrict {{ msp_agent_pubkeys.cron }} role=cron
 {% if msp_broker_pubkey | default('') | length > 0 %}
-restrict {{ msp_broker_pubkey }} role=broker
+restrict{% if msp_broker_from | default('') | length > 0 %},from="{{ msp_broker_from }}"{% endif %} {{ msp_broker_pubkey }} role=broker
 {% endif %}

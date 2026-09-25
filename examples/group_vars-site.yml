@@ -24,6 +24,8 @@ msp_repo_url: git@github.com:ORG/CLIENT-REPO.git   # the client's own record; th
 # msp_broker_proxmox_host: 192.0.2.1                   # the gated hypervisor's address
 # msp_broker_proxmox_target: SITE-pve                  # its inventory name (its host key is pinned at deploy)
 # msp_service_allowlist: [smbd, chrony]                # on the hypervisor: units the broker may restart
+# msp_broker_operations: [vm.start, vm.shutdown, vm.reboot, vm.stop, ct.start, ct.shutdown, ct.reboot, ct.stop, zpool.scrub, service.restart, script.run]
+#                                                      # on the hypervisor: the ONLY operations the broker key may run there; empty refuses all
 # msp_broker_inventory: []                         # stable IDs; the proxmox adapter fills this from the host
 # msp_broker_script: {enabled: true, max_bytes: 65536, default_timeout_seconds: 600, max_timeout_seconds: 1800, interpreters: [bash, sh, python3], forbidden_patterns: []}
 # msp_broker_plans: {enabled: true, max_steps: 8}
