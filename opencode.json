@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "orchestrator",
+  "agent": {
+    "explore": {
+      "model": "openrouter/deepseek/deepseek-v4.1-flash",
+      "options": { "reasoningEffort": "low" }
+    },
+    "general": {
+      "model": "openrouter/deepseek/deepseek-v4-pro"
+    }
+  }
+}
