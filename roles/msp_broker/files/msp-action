@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+
+sys.path.insert(0, os.environ.get("MSP_BROKER_LIB", "/usr/local/lib/msp-broker"))
+
+from broker.adapters import Refused
+from broker.cli import dump, parse_params, request
+from broker.config import Paths
+
+USAGE = """usage:
+  msp-action propose OP --target REF [--param k=v]...
+  msp-action propose-script --target REF --interpreter I --file PATH --purpose TEXT [--effects TEXT] [--timeout N]
+  msp-action propose-plan --file PATH
+  msp-action list [--limit N]
+  msp-action show ID | status ID | cancel ID"""
+
+
+def flag(args, name, default=None):
+    if name in args:
+        index = args.index(name)
+        if index + 1 >= len(args):
+            raise Refused("%s needs a value" % name)
+        return args[index + 1]
+    return default
+
+
+def flags(args, name):
+    out = []
+    for index, item in enumerate(args):
+        if item == name and index + 1 < len(args):
+            out.append(args[index + 1])
+    return out
+
+
+def main(argv):
+    if not argv:
+        print(USAGE, file=sys.stderr)
+        return 2
+    command, args = argv[0], argv[1:]
+    params = {}
+    try:
+        if command == "propose":
+            operation = args[0] if args and not args[0].startswith("-") else ""
+            params = {
+                "operation": operation,
+                "target": flag(args, "--target", ""),
+                "parameters": parse_params(flags(args, "--param")),
+            }
+            method = "propose"
+        elif command == "propose-script":
+            method = "propose_script"
+            params = {
+                "target": flag(args, "--target", ""),
+                "interpreter": flag(args, "--interpreter", ""),
+                "file": flag(args, "--file", ""),
+                "purpose": flag(args, "--purpose", ""),
+                "effects": flag(args, "--effects", ""),
+                "timeout": int(flag(args, "--timeout", 0)) or None,
+            }
+        elif command == "propose-plan":
+            path = flag(args, "--file", "")
+            with open(path, "r", encoding="utf-8") as fh:
+                plan = json.load(fh)
+            method = "propose_plan"
+            params = {"purpose": plan.get("purpose", ""), "steps": plan.get("steps", [])}
+        elif command == "list":
+            method = "list"
+            params = {"limit": int(flag(args, "--limit", 20))}
+        elif command in ("show", "status"):
+            method = command
+            params = {"proposal_id": args[0] if args else ""}
+        elif command == "cancel":
+            method = "cancel"
+            params = {"proposal_id": args[0] if args else ""}
+        else:
+            print(USAGE, file=sys.stderr)
+            return 2
+        result = request(Paths().socket, method, params)
+    except Refused as exc:
+        print("refused: %s" % exc, file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 1
+    dump(result)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

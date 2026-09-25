@@ -1,0 +1,117 @@
+- name: Client identity is set
+  ansible.builtin.assert:
+    that:
+      - msp_broker_client_id | length > 0
+      - msp_broker_client_name | length > 0
+    fail_msg: "set msp_broker_client_id and msp_broker_client_name in group_vars/<site>.yml"
+
+- name: Python for the broker
+  ansible.builtin.apt:
+    name: [python3]
+    state: present
+
+- name: Approver and broker socket groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: [msp-approvers, msp-broker]
+
+- name: The llm user may reach the socket (not approve)
+  ansible.builtin.user:
+    name: "{{ msp_llm_user | default('llm') }}"
+    groups: msp-broker
+    append: true
+
+- name: Approver accounts
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: msp-broker
+    append: true
+    shell: /bin/bash
+    create_home: true
+    password: "!"
+  loop: "{{ msp_broker_approvers }}"
+
+- name: Approver keys
+  ansible.posix.authorized_key:
+    user: "{{ item.0 }}"
+    key: "{{ item.1 }}"
+    comment: approver
+  loop: "{{ msp_broker_approvers | product(msp_broker_approver_pubkeys) | list }}"
+  when: msp_broker_approver_pubkeys | length > 0
+
+- name: Broker directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/msp/secrets, mode: "0700"}
+    - {path: /var/lib/msp-broker, mode: "0700"}
+    - {path: /var/lib/msp-broker/proposals, mode: "0700"}
+    - {path: /var/lib/msp-broker/receipts, mode: "0700"}
+    - {path: /var/log/msp-broker, mode: "0700"}
+
+- name: Broker code (root-owned; the llm user can read, not write)
+  ansible.builtin.copy:
+    src: broker
+    dest: /usr/local/lib/msp-broker/
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Broker commands
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /usr/local/bin/{{ item }}
+    owner: root
+    group: root
+    mode: "0755"
+  loop: [msp-action, msp-read, msp-approve, msp-brokerd]
+
+- name: Client identity file
+  ansible.builtin.template:
+    src: client.conf.j2
+    dest: /etc/msp/client.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Policy (root-owned; the AI cannot modify)
+  ansible.builtin.template:
+    src: policy.json.j2
+    dest: /etc/msp/policy.json
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Inventory seed
+  ansible.builtin.template:
+    src: inventory.json.j2
+    dest: /etc/msp/inventory.json
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Policy must load before the service starts
+  ansible.builtin.command: /usr/local/bin/msp-brokerd --check
+  changed_when: false
+
+- name: Broker service
+  ansible.builtin.template:
+    src: msp-broker.service.j2
+    dest: /etc/systemd/system/msp-broker.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart-msp-broker
+
+- name: Broker enabled and running
+  ansible.builtin.systemd:
+    name: msp-broker
+    enabled: true
+    state: started
+    daemon_reload: true

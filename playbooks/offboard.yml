@@ -5,7 +5,17 @@
 #   ap playbooks/offboard.yml -l SITE
 - name: "Site box: stop the checks (re-image it by hand afterwards)"
   hosts: box
+  handlers:
+    - name: daemon-reload
+      ansible.builtin.systemd:
+        daemon_reload: true
   tasks:
+    - name: Stop the broker (receipts are kept unless msp_offboard_purge)
+      ansible.builtin.systemd:
+        name: msp-broker
+        enabled: false
+        state: stopped
+      failed_when: false
     - name: Installed msp timers on this node
       ansible.builtin.shell: systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '{print $1}'
       register: offboard_box_timers
@@ -25,6 +35,13 @@
         state: absent
       loop: [/etc/msp, /usr/local/lib/msp, /usr/local/share/msp, /var/lib/msp, /var/spool/msp, /run/msp, /var/log/msp]
       when: msp_offboard_purge | default(false)
+    - name: Broker files removed only with msp_offboard_purge (receipts are evidence)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/usr/local/lib/msp-broker, /var/lib/msp-broker, /var/log/msp-broker, /etc/systemd/system/msp-broker.service]
+      when: msp_offboard_purge | default(false)
+      notify: daemon-reload
     - name: What remains
       ansible.builtin.debug:
         msg: >-

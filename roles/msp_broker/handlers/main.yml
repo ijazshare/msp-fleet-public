@@ -1,0 +1,5 @@
+- name: restart-msp-broker
+  ansible.builtin.systemd:
+    name: msp-broker
+    state: restarted
+    daemon_reload: true

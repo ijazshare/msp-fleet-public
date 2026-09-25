@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "client_id": "{{ msp_broker_client_id }}",
+  "approver_groups": ["msp-approvers"],
+  "approver_users": {{ msp_broker_approvers | to_json }},
+  "reader_groups": ["{{ msp_llm_user | default('llm') }}"],
+  "approval_ttl_seconds": {{ msp_broker_ttl_seconds | int }},
+  "adapters": {{ msp_broker_adapters | to_nice_json }},
+  "script": {{ msp_broker_script | to_nice_json }},
+  "plans": {{ msp_broker_plans | to_nice_json }}
+}

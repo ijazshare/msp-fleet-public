@@ -11,6 +11,19 @@ msp_baseline:
   # backup.warn_age: 93600
   # backup.crit_age: 180000
 msp_repo_url: git@github.com:ORG/CLIENT-REPO.git   # the client's own record; the box pushes session notes there
+# Broker (approval-gated changes). client_id/client_name appear on the technician's approval card.
+# msp_broker_client_id: client_abc
+# msp_broker_client_name: ABC Accounting
+# msp_broker_approvers: [msp-tech]                 # Unix accounts that may approve; keys below log into them
+# msp_broker_approver_pubkeys:
+#   - "ssh-ed25519 AAAA... tech@laptop"
+# msp_broker_ttl_seconds: 300                      # how long a proposal may wait for approval
+# msp_broker_adapters:
+#   proxmox: {enabled: true, operations: [vm.start, vm.shutdown, vm.reboot, vm.stop, ct.start, ct.shutdown, ct.reboot, ct.stop, zpool.scrub, service.restart]}
+#   mock: {enabled: false, operations: []}
+# msp_broker_inventory: []                         # stable IDs; the proxmox adapter fills this from the host
+# msp_broker_script: {enabled: true, max_bytes: 65536, default_timeout_seconds: 600, max_timeout_seconds: 1800, interpreters: [bash, sh, python3], forbidden_patterns: []}
+# msp_broker_plans: {enabled: true, max_steps: 8}
 msp_never_stage:                    # never staged, whatever the label (case-insensitive substring match)
   - "zpool destroy"
   - "wipefs"

@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+sys.path.insert(0, os.environ.get("MSP_BROKER_LIB", "/usr/local/lib/msp-broker"))
+
+from broker.adapters import Refused
+from broker.cli import dump, request
+from broker.config import Paths
+
+USAGE = """usage:
+  msp-approve                          interactive: review pending changes
+  msp-approve --list
+  msp-approve --show ID
+  msp-approve --approve ID [--confirm TEXT]
+  msp-approve --reject ID [--reason TEXT]"""
+
+CARD = """=================================================
+CHANGE REQUEST
+=================================================
+CLIENT      {client}
+SITE        {site}
+TARGET      {target}
+ACTION      {action}
+CURRENT     {state}
+IMPACT      {impact}
+RISK        {risk}
+REQUEST ID  {pid}
+================================================="""
+
+
+def flag(args, name, default=None):
+    if name in args:
+        index = args.index(name)
+        if index + 1 >= len(args):
+            raise Refused("%s needs a value" % name)
+        return args[index + 1]
+    return default
+
+
+def show_card(paths, proposal_id):
+    proposal = request(paths.socket, "show", {"proposal_id": proposal_id})
+    effect = proposal.get("effect") or proposal.get("operation")
+    lines = []
+    if proposal.get("ai_declared"):
+        lines.append("AI DECLARED PURPOSE: %s" % proposal["ai_declared"].get("purpose", ""))
+        if proposal["ai_declared"].get("effects"):
+            lines.append("AI DECLARED EFFECTS: %s" % proposal["ai_declared"]["effects"])
+    print(CARD.format(
+        client=proposal.get("client_id", ""),
+        site=proposal.get("site_id", ""),
+        target="%s (%s)" % (proposal.get("target_name", ""), proposal.get("target_id", "")),
+        action=effect,
+        state="; ".join("%s=%s" % (k, v) for k, v in sorted((proposal.get("pre_state") or {}).items())) or "n/a",
+        impact=proposal.get("description") or effect,
+        risk=proposal.get("risk", ""),
+        pid=proposal.get("proposal_id", ""),
+    ))
+    if lines:
+        print("\n".join(lines))
+    return proposal
+
+
+def ask(prompt):
+    try:
+        return input(prompt)
+    except EOFError:
+        raise Refused("confirmation required")
+
+
+def approve(paths, proposal_id, confirmation=None):
+    proposal = request(paths.socket, "show", {"proposal_id": proposal_id})
+    if proposal.get("risk") == "HIGH" and confirmation is None:
+        confirmation = ask("Type exactly: %s\n> " % proposal.get("confirmation_required") or "")
+    result = request(paths.socket, "approve",
+                     {"proposal_id": proposal_id, "confirmation": confirmation or ""})
+    dump(result)
+
+
+def interactive(paths):
+    pending = [p for p in request(paths.socket, "list", {"limit": 50}) if p["status"] == "PROPOSED"]
+    if not pending:
+        print("nothing pending")
+        return
+    for index, item in enumerate(pending, 1):
+        print("%2d. %-18s %-20s %-12s %s" % (index, item["operation"], item["target_name"],
+                                             item["risk"], item["proposal_id"]))
+    choice = input("select number (q to quit): ").strip()
+    if choice in ("q", ""):
+        return
+    if not choice.isdigit() or not 1 <= int(choice) <= len(pending):
+        print("invalid selection", file=sys.stderr)
+        return
+    proposal_id = pending[int(choice) - 1]["proposal_id"]
+    proposal = show_card(paths, proposal_id)
+    answer = input("A=approve R=reject D=details q=quit: ").strip().lower()
+    if answer == "d":
+        dump(request(paths.socket, "show", {"proposal_id": proposal_id}))
+        answer = input("A=approve R=reject q=quit: ").strip().lower()
+    if answer == "a":
+        confirmation = ""
+        if proposal.get("risk") == "HIGH":
+            confirmation = ask("Type exactly: %s\n> " % proposal.get("confirmation_required", ""))
+        dump(request(paths.socket, "approve",
+                     {"proposal_id": proposal_id, "confirmation": confirmation}))
+    elif answer == "r":
+        reason = ask("reason (optional): ").strip()
+        dump(request(paths.socket, "reject", {"proposal_id": proposal_id, "reason": reason}))
+    else:
+        print("aborted")
+
+
+def main(argv):
+    paths = Paths()
+    try:
+        if "--list" in argv:
+            dump(request(paths.socket, "list", {"limit": int(flag(argv, "--limit", 50))}))
+        elif "--show" in argv:
+            dump(request(paths.socket, "show", {"proposal_id": flag(argv, "--show", "")}))
+        elif "--approve" in argv:
+            approve(paths, flag(argv, "--approve", ""), flag(argv, "--confirm"))
+        elif "--reject" in argv:
+            dump(request(paths.socket, "reject",
+                         {"proposal_id": flag(argv, "--reject", ""), "reason": flag(argv, "--reason", "")}))
+        elif argv:
+            print(USAGE, file=sys.stderr)
+            return 2
+        else:
+            interactive(paths)
+    except Refused as exc:
+        print("refused: %s" % exc, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -227,6 +227,36 @@ h sh -c 'rm /etc/ssh/sshd_config.d/60-msp.conf; systemctl reload ssh'           
 x systemctl start msp-check@guarantee.service
 x grep -q '^rc=2' /var/lib/msp/state/guarantee.state; t $? "guarantee self-test goes CRIT when the sshd block is removed: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state | cut -c1-60)"
 
+# 13 broker core: one socket, frozen proposals, technician approval, no approval = no change
+x systemctl is-active --quiet msp-broker; t $? "broker service active"
+x test -S /run/msp/broker.sock; t $? "broker socket exists"
+x sh -c 'test "$(stat -c %a /etc/msp/secrets)" = 700'; t $? "secrets dir 0700"
+x su -s /bin/sh -c 'cat /etc/msp/secrets/* 2>/dev/null' llm >/dev/null 2>&1; [ $? != 0 ]; t $? "llm cannot read secrets"
+x su -s /bin/sh -c 'cat /var/lib/msp-broker/broker.db' llm >/dev/null 2>&1; [ $? != 0 ]; t $? "llm cannot read the broker DB"
+x su -s /bin/sh -c 'echo x >> /etc/msp/policy.json' llm >/dev/null 2>&1; [ $? != 0 ]; t $? "llm cannot modify broker policy"
+x su -s /bin/sh -c 'msp-read inventory' llm | grep -q dev_1; t $? "llm reads broker inventory"
+x sh -c 'rm -f /var/lib/msp-broker/mock_state.json'
+pid=$(x su -s /bin/sh -c 'msp-action propose mock.echo --target dev_1 --param message=hello' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+[ -n "$pid" ]; t $? "llm proposes a change ($pid)"
+x test ! -e /var/lib/msp-broker/mock_state.json; t $? "no approval yet: nothing changed"
+x su -s /bin/sh -c "msp-approve --approve $pid" llm 2>&1 | grep -q 'refused: not an approver'; t $? "llm cannot approve its own proposal"
+x su -s /bin/sh -c "msp-approve --approve $pid" tech | grep -q SUCCEEDED; t $? "technician approves; the frozen change executes"
+x test -f "/var/lib/msp-broker/receipts/$pid.json"; t $? "receipt written"
+x grep -q '"approver": "tech"' "/var/lib/msp-broker/receipts/$pid.json"; t $? "receipt names the approving technician"
+x su -s /bin/sh -c "msp-approve --approve $pid" tech 2>&1 | grep -q 'not awaiting approval'; t $? "replay refused"
+# script freeze: the scratch copy changes after staging; only the frozen copy may run
+x su -s /bin/sh -c 'printf "#!/bin/sh\necho frozen-ok\n" > /tmp/msp-fix.sh' llm
+spid=$(x su -s /bin/sh -c 'msp-action propose-script --target dev_1 --interpreter sh --file /tmp/msp-fix.sh --purpose "prove freeze"' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+[ -n "$spid" ]; t $? "llm stages a script proposal ($spid)"
+x su -s /bin/sh -c 'echo "echo tampered" > /tmp/msp-fix.sh' llm
+x su -s /bin/sh -c "msp-approve --approve $spid --confirm 'APPROVE MOCK-ONE'" tech | grep -q SUCCEEDED; t $? "script proposal approved"
+x grep -q 'frozen-ok' "/var/lib/msp-broker/receipts/$spid.json"; t $? "frozen copy ran, not the modified scratch"
+x grep -q 'tampered' "/var/lib/msp-broker/receipts/$spid.json"; [ $? != 0 ]; t $? "tampered scratch content absent from the transcript"
+# HIGH risk demands the semantic confirmation, not shell syntax
+hpid=$(x su -s /bin/sh -c 'msp-action propose mock.halt --target dev_2' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+x su -s /bin/sh -c "msp-approve --approve $hpid --confirm wrong" tech 2>&1 | grep -q 'confirmation does not match'; t $? "HIGH risk refused without exact confirmation"
+x su -s /bin/sh -c "msp-approve --approve $hpid --confirm 'HALT MOCK-TWO'" tech | grep -q SUCCEEDED; t $? "HIGH risk runs with exact confirmation"
+
 # 10 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"
 [ $fail = 0 ]

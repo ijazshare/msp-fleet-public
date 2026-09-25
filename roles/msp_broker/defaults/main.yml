@@ -1,0 +1,15 @@
+msp_broker_client_id: "client_{{ site | default('main') | lower | regex_replace('[^a-z0-9_]', '_') }}"
+msp_broker_client_name: "{{ site | default('Main') }}"
+msp_broker_site_id: "site_{{ site | default('main') | lower | regex_replace('[^a-z0-9_]', '_') }}"
+msp_broker_ttl_seconds: 300
+msp_broker_approvers: []            # Unix accounts allowed to approve; they join msp-approvers
+msp_broker_approver_pubkeys: []     # authorized keys for those accounts (same order is not required)
+msp_broker_inventory: []            # seed entries: id, kind, name, adapter, external_id, attrs
+msp_broker_adapters:
+  mock:
+    enabled: false
+    operations: []
+msp_broker_script:
+  enabled: false
+msp_broker_plans:
+  enabled: false
