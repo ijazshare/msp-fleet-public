@@ -26,6 +26,13 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
 7. Client-specific values live only in `group_vars/<site>.yml` and `host_vars/`, and in the client section of
    the AGENTS.md they generate. Captured host output lives in `captures/<site>-<date>/` and is never shipped
    to a node.
+8. Changes run through a root-owned broker on the box (`roles/msp_broker`): the AI proposes a registered
+   operation, a frozen script or a frozen plan over a Unix socket; a separate technician account (in
+   `msp-approvers`) approves with `msp-approve`; the broker revalidates the target state and the frozen hash,
+   executes the exact argv once and writes a root-owned receipt. The AI has no host credentials and cannot
+   approve its own proposal. The staged-command gate stays as the host-side boundary (defense in depth): the
+   broker reaches a hypervisor only through a dedicated `role=broker` key, and `msp-execverb` on the host
+   accepts only registered operations, allowlisted units and allowlisted interpreters.
 
 ## Layout
 
@@ -37,6 +44,8 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
                             msp-notify, msp-alert, msp-dump, msp-check@ units, heartbeat, checker-broke alert
     roles/msp_snmp          optional snmpd agent: one `extend` per check, read-only, for the site's NMS
     roles/msp_box           llm user, msp wrapper, tmux Plan/Scratch, client repo clone, AGENTS.md, msp-end
+    roles/msp_broker        the approval broker: msp-action, msp-read, msp-approve, msp-brokerd, policy,
+                            SQLite state, frozen proposals, receipts, mock + proxmox adapters
     roles/msp_host          dispatcher, stage, gate, recorder + redaction, sudoers read verb, sshd Match
     roles/msp_tools         Claude Code, agy and OpenCode for the llm user
     playbooks/site.yml      build or repair a site (box, hypervisors, box known_hosts from real host keys)
@@ -49,6 +58,7 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
 ## Proving a change without touching a host
 
     sh roles/msp_checks/files/tests/run.sh      # every check against its fixtures, runs anywhere
+    sh roles/msp_broker/files/tests/run.sh      # broker core: state machine, freeze, approvals, adapters
     bin/lint                                    # shellcheck + ansible-lint (profile in .ansible-lint)
     sh sandbox/prove.sh                         # fresh sandbox, site.yml twice (second changed=0), test.sh,
                                                 # offboard.sh -> PROOF OK
@@ -78,6 +88,18 @@ Reads are free, changes are not: `msp HOST read-state` gives the agent the same 
 `msp-scratch` overlays the llm home with an in-memory layer inside a user namespace: every tool is signed in,
 nothing written survives the window. `check-scratch` re-proves it daily. The laptop sandbox cannot run it
 (AppArmor blocks unprivileged user namespaces), so its tests assert the refusal path.
+
+## Changes (the broker)
+
+Reads are free: `msp-read inventory`, `msp-read target REF`, `msp-read proxmox.vms`, `msp-read proxmox.vm vm_104`.
+Changes are proposals, never commands: `msp-action propose vm.reboot --target vm_104`,
+`msp-action propose-script --target vm_104 --interpreter bash --file /tmp/msp-work/fix.sh --purpose "..."`, or a
+frozen multi-step plan (`msp-action propose-plan --file plan.json`). A technician reviews the effect card
+(client, site, target, action, impact, risk) and approves with `msp-approve`; the broker then executes the exact
+frozen argv once. Refusals are final: unknown or ambiguous targets, forbidden or unsupported operations, expired
+or already-decided proposals, hash mismatches and target drift all fail closed. Receipts live under
+`/var/lib/msp-broker/receipts/` and are root-owned; the AI can read its own proposal status but cannot approve,
+cannot change a frozen proposal and cannot read the broker DB or the hypervisor key in `/etc/msp/secrets/`.
 
 ## Run (as ops)
 

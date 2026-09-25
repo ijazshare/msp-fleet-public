@@ -41,11 +41,6 @@ def flag(args, name, default=None):
 def show_card(paths, proposal_id):
     proposal = request(paths.socket, "show", {"proposal_id": proposal_id})
     effect = proposal.get("effect") or proposal.get("operation")
-    lines = []
-    if proposal.get("ai_declared"):
-        lines.append("AI DECLARED PURPOSE: %s" % proposal["ai_declared"].get("purpose", ""))
-        if proposal["ai_declared"].get("effects"):
-            lines.append("AI DECLARED EFFECTS: %s" % proposal["ai_declared"]["effects"])
     print(CARD.format(
         client=proposal.get("client_id", ""),
         site=proposal.get("site_id", ""),
@@ -56,8 +51,29 @@ def show_card(paths, proposal_id):
         risk=proposal.get("risk", ""),
         pid=proposal.get("proposal_id", ""),
     ))
-    if lines:
-        print("\n".join(lines))
+    if proposal.get("ai_declared"):
+        print("AI DECLARED PURPOSE: %s" % proposal["ai_declared"].get("purpose", ""))
+        if proposal["ai_declared"].get("effects"):
+            print("AI DECLARED EFFECTS: %s" % proposal["ai_declared"]["effects"])
+    plan = proposal.get("plan") or {}
+    if proposal.get("operation") == "script.run":
+        script = plan.get("script", {})
+        print("SCRIPT HASH  SHA256: %s" % script.get("sha256", ""))
+        print("INTERPRETER  %s    TIMEOUT  %ss" % (script.get("interpreter", ""), script.get("timeout_seconds", "")))
+        findings = script.get("findings") or []
+        if findings:
+            print("DETECTED HIGH-RISK OPERATIONS:")
+            for finding in findings:
+                print("  line %s: %s (%s)" % (finding.get("line"), finding.get("label"), finding.get("severity")))
+        else:
+            print("DETECTED HIGH-RISK OPERATIONS: none by pattern scan (not a safety proof)")
+    elif proposal.get("operation") == "plan.run":
+        print("FROZEN STEPS:")
+        for index, step in enumerate(plan.get("steps", []), 1):
+            print("  %d. %s -> %s %s" % (index, step.get("operation"), step.get("target_name"),
+                                         step.get("parameters") or ""))
+    elif proposal.get("executor"):
+        print("EXECUTOR  %s (fixed argv, no shell)" % proposal["executor"])
     return proposal
 
 

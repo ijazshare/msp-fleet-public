@@ -4,6 +4,8 @@ Version 3 draft, 2026-09-19. Written to replace the two earlier builds (v1 `gax`
 
 **As built (2026-09-24).** The AI does not run in an LXC "agent CT" on the hypervisor. Each site has a dedicated plain-Debian **site box** (role `msp_box`) where the AI tools, the client repository and the AI's keys live, as the unprivileged `llm` user with no sudo. Each gated hypervisor gets `msp_host` (account `msp-agent`, dispatcher, gate, recorded shell), and every node, box included, gets `msp_checks` (systemd timers, state files, `msp-notify`). An optional `msp_snmp` role serves every check over read-only SNMP on the site LAN. The sections below are written for that design; where the September 19 draft said otherwise it has been corrected in place, and the reasoning that carried over is kept. The README and the roles are authoritative if this file and they ever disagree.
 
+**Broker extension (2026-09-25).** The write path is now a root-owned broker on the box (role `msp_broker`): the AI proposes registered operations, frozen scripts or frozen plans over a Unix socket; a separate technician account approves; the broker revalidates and executes the exact frozen argv once, with root-owned receipts. Section 11 describes it. It supersedes the part of D4 that made the staged-command gate the only write path: the gate remains as the host-side boundary, and the broker reaches a hypervisor only through its own `role=broker` key and the host-side `msp-execverb` allowlists.
+
 For every decision below: the chosen option comes first with the reasons, then the alternatives and why they lost. Where a decision is still yours, it says so.
 
 ---
@@ -297,7 +299,56 @@ Does not protect against: a human approving a bad command they did not read; sec
 - The never-stage list for each client.
 - Per site: whether the client's NMS polls the box (`msp_snmp`), receives traps, or neither.
 
-## 10. Words used here
+## 11. Broker extension (as built 2026-09-25)
+
+The broker is a small Python 3 daemon (standard library only) on the site box, root-owned, reachable only over
+`/run/msp/broker.sock` (mode 0660, group `msp-broker`). It owns policy, inventory, proposal state and execution;
+the AI owns nothing but its scratch space.
+
+**Identities.** `llm` reads and proposes; a separate technician account (group `msp-approvers`, keys from
+`msp_broker_approver_pubkeys`) approves; root owns the broker, its policy, its database, its receipts and the
+hypervisor key in `/etc/msp/secrets/` (0700). Authorization is decided from `SO_PEERCRED`, never from anything
+the client sends. Root can always approve, and the AI can never approve its own proposal.
+
+**What the broker verifies, itself.** The operation is in the code registry and in root-owned policy
+(`/etc/msp/policy.json`); the target resolves in the broker's inventory by stable ID (names are resolved only
+when unambiguous, cross-client targets are refused); the parameters match the registry's types; the risk class
+comes from the registry and the requester cannot influence it; timestamps and expiry are broker-generated
+(default TTL 300s); the execution plan is canonical JSON, hashed with SHA-256 and frozen in SQLite. Approval
+rechecks the hash, the expiry, the target and the adapter's preconditions before executing the exact argv once,
+under a single-execution lock; replay, hash mismatch, expiry and state drift all fail closed. Receipts are
+root-owned JSON files (plus a database row) carrying proposal, approver, frozen hash, pre/post state and result.
+
+**Complex work.** `msp-action propose-script` copies the scratch file (regular file, no symlinks, size-capped,
+owned by the requester), hashes and freezes it, scans it for high-risk patterns, forces HIGH risk and shows the
+technician the frozen hash, the findings and the AI's declared purpose/effects labelled AI DECLARED. Execution
+runs the frozen copy, never the scratch file, under a broker-enforced timeout, and records a transcript.
+`msp-action propose-plan` freezes a list of registered operations; the plan stops at the first failing step and
+no step may change after approval.
+
+**Second boundary on the host.** The broker reaches a gated hypervisor with a dedicated `role=broker` key
+(`/etc/msp/secrets/proxmox_key`). `msp-dispatch` refuses `exec`/`run-script` for every other role; `msp-execverb`
+validates every argument and accepts only `qm`/`pct` start/shutdown/reboot/stop, `zpool scrub`, `systemctl
+restart` for units in `/etc/msp/service.allowlist`, and scripts only for interpreters in
+`/etc/msp/interpreter.allowlist`. The host never shells out.
+
+**Implemented and tested (2026-09-25).** Phases 1–3: broker core with a mock adapter; Proxmox adapter (known
+actions, reads, preconditions) over the existing host path; complex script mode and frozen plans. 53 unit tests
+(`sh roles/msp_broker/files/tests/run.sh`) and the sandbox suite cover the invariants above, including: no
+approval means no change, the AI cannot approve or read secrets or the broker DB or modify policy, replay is
+refused, a tampered frozen script is refused, a failing plan step stops the rest, and a target that drifted
+between proposal and approval is refused.
+
+**Deviations from the draft, and why.** Policy and client identity are JSON and `key = value` respectively, not
+YAML: the broker is standard-library only and Python has no YAML parser. The broker key on the box supersedes
+requirement 4 ("root reaches a hypervisor from the laptop only") in the narrow sense that the broker, not the
+AI, now holds a host key: the AI still cannot read it, and the host still enforces its own boundary. The mock
+adapter ships enabled only in the sandbox.
+
+**Not implemented yet.** Phases 4–9 of the extension: UniFi, printers, Windows, ConnectWise/ScreenConnect,
+Axcient, M365/Google Workspace adapters, and UID-based LLM network isolation.
+
+## 12. Words used here
 
 - **SSH**: the encrypted remote-login protocol every step uses. A **key** is a file pair; the public half is placed on a server, the private half stays where it was made.
 - **Forced command**: an SSH server setting that runs one fixed program for a given account, ignoring what the client asked to run.

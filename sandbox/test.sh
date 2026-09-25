@@ -119,6 +119,7 @@ x id -nG llm | grep -qvE 'sudo|adm'; t $? "llm user exists and is in no privileg
 x sh -c 'command -v sudo >/dev/null && sudo -l -U llm 2>/dev/null | grep -q "may run" && exit 1; exit 0'; t $? "llm has no sudo rules"
 x test -L /home/llm/fake-origin/CLAUDE.md; t $? "CLAUDE.md is a symlink to AGENTS.md in the clone"
 x grep -q 'zpool destroy' /home/llm/fake-origin/AGENTS.md; t $? "AGENTS.md carries the site never-stage list"
+x grep -q 'msp-action propose' /home/llm/fake-origin/AGENTS.md; t $? "AGENTS.md documents the broker path"
 x git -C /home/llm/fake-origin log --oneline | grep -q 'msp: rules file'; t $? "layout and rules committed by the box"
 x git -C /srv/fake-origin.git log --oneline | grep -q 'msp: rules file'; t $? "and pushed to the origin"
 x sh -c 'readlink /home/llm/.claude/projects/-home-llm-fake-origin/memory | grep -q /home/llm/fake-origin/memory/claude'; t $? "Claude Code project memory symlinked into the repo"
@@ -284,6 +285,19 @@ x grep -q 'tampered' "/var/lib/msp-broker/receipts/$spid.json"; [ $? != 0 ]; t $
 hpid=$(x su -s /bin/sh -c 'msp-action propose mock.halt --target dev_2' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
 x su -s /bin/sh -c "msp-approve --approve $hpid --confirm wrong" tech 2>&1 | grep -q 'confirmation does not match'; t $? "HIGH risk refused without exact confirmation"
 x su -s /bin/sh -c "msp-approve --approve $hpid --confirm 'HALT MOCK-TWO'" tech | grep -q SUCCEEDED; t $? "HIGH risk runs with exact confirmation"
+# plans: every step frozen up front; a failing step stops the rest (docker cp cannot write the container's tmpfs /tmp)
+docker cp sandbox/plan-fail.json msp-sandbox:/root/msp-plan.json >/dev/null
+x sh -c 'mv /root/msp-plan.json /tmp/msp-plan.json; chmod 644 /tmp/msp-plan.json'
+x sh -c 'rm -f /var/lib/msp-broker/mock_state.json'
+ppid=$(x su -s /bin/sh -c 'msp-action propose-plan --file /tmp/msp-plan.json' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+[ -n "$ppid" ]; t $? "llm proposes a frozen plan ($ppid)"
+x su -s /bin/sh -c "msp-approve --approve $ppid" tech | grep -q FAILED; t $? "plan stops at the failing step"
+x grep -q '"counter": 1' /var/lib/msp-broker/mock_state.json; t $? "steps after the failure did not run"
+# static findings are visible to the requester before approval
+x su -s /bin/sh -c 'printf "#!/bin/sh\nrm -rf /var/tmp/msp-x\n" > /tmp/msp-warn.sh' llm
+wpid=$(x su -s /bin/sh -c 'msp-action propose-script --target dev_1 --interpreter sh --file /tmp/msp-warn.sh --purpose "warn"' llm | sed -n 's/.*"proposal_id": "\([^"]*\)".*/\1/p')
+x su -s /bin/sh -c "msp-action show $wpid" llm | grep -q 'recursive/file deletion'; t $? "static findings visible before approval"
+x su -s /bin/sh -c "msp-action cancel $wpid" llm >/dev/null
 
 # 10 idempotence is checked by the caller (second playbook run: changed=0)
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"

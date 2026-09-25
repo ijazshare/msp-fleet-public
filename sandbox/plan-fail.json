@@ -1,0 +1,8 @@
+{
+  "purpose": "prove failure-stop",
+  "steps": [
+    {"operation": "mock.echo", "target": "dev_1", "parameters": {"message": "one"}},
+    {"operation": "mock.fail", "target": "dev_1", "parameters": {}},
+    {"operation": "mock.echo", "target": "dev_2", "parameters": {"message": "three"}}
+  ]
+}

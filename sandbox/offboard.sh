@@ -19,5 +19,7 @@ n=$(h systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' 
 h test -d /var/log/msp/rec; t $? "recordings kept (msp_offboard_purge defaults off)"
 x su -s /bin/sh -c 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host status' llm 2>&1 | grep -qiE 'denied|refused|closed|unable'; t $? "agent key no longer opens anything"
 n=$(x sh -c "systemctl list-units --type=timer --all --no-legend --plain 'msp-check@*' | awk '\$3==\"active\"' | wc -l"); [ "$n" = 0 ]; t $? "box timers stopped (got $n active)"
+x test ! -e /usr/local/bin/msp-brokerd && x test ! -e /etc/msp/secrets && x test ! -e /etc/systemd/system/msp-broker.service; t $? "broker commands, key and unit gone"
+x test -d /var/lib/msp-broker; t $? "broker receipts kept (msp_offboard_purge defaults off)"
 echo "---- $( [ $fail = 0 ] && echo ALL PASS || echo "$fail FAILED" )"
 [ $fail = 0 ]

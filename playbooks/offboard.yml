@@ -35,21 +35,41 @@
         state: absent
       loop: [/etc/msp, /usr/local/lib/msp, /usr/local/share/msp, /var/lib/msp, /var/spool/msp, /run/msp, /var/log/msp]
       when: msp_offboard_purge | default(false)
-    - name: Broker files removed only with msp_offboard_purge (receipts are evidence)
+    - name: "Broker boundary files go (key, policy, code); receipts stay"
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      loop: [/usr/local/lib/msp-broker, /var/lib/msp-broker, /var/log/msp-broker, /etc/systemd/system/msp-broker.service]
-      when: msp_offboard_purge | default(false)
+      loop:
+        - /usr/local/lib/msp-broker
+        - /usr/local/bin/msp-brokerd
+        - /usr/local/bin/msp-action
+        - /usr/local/bin/msp-read
+        - /usr/local/bin/msp-approve
+        - /usr/local/sbin/msp-execverb
+        - /etc/systemd/system/msp-broker.service
+        - /etc/msp/secrets
+        - /etc/msp/policy.json
+        - /etc/msp/client.conf
+        - /etc/msp/inventory.json
+        - /etc/msp/known_hosts
+        - /etc/msp/service.allowlist
+        - /etc/msp/interpreter.allowlist
       notify: daemon-reload
+    - name: Broker state removed only with msp_offboard_purge (receipts are evidence)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/var/lib/msp-broker, /var/log/msp-broker]
+      when: msp_offboard_purge | default(false)
     - name: What remains
       ansible.builtin.debug:
         msg: >-
           box: msp timers stopped. Re-image this box, remove its deploy key from
           {{ msp_repo_url | default('the client repository') }}, then archive that repository.
-          {% if not (msp_offboard_purge | default(false)) %}
-          Recordings and the config dump are kept under /var/log/msp/rec and /var/lib/msp/dump.
-          {% endif %}
+           {% if not (msp_offboard_purge | default(false)) %}
+           Recordings and the config dump are kept under /var/log/msp/rec and /var/lib/msp/dump;
+           broker receipts under /var/lib/msp-broker.
+           {% endif %}
 
 - name: "Hypervisors: remove the boundary"
   hosts: pve_hosts
