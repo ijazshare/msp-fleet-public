@@ -1,6 +1,8 @@
 # Broker build — handover (2026-09-25)
 
-Resume from here. Read this, then `docs/SPEC.md` §11 and `git log --oneline -8`.
+Resume from here. Read this, then `docs/BROKER-SPEC.md` (the full plan, authoritative for Phase 4 onward),
+`docs/SPEC.md` §11 (the design record) and `git log --oneline -8`. `AGENTS.md` (with `CLAUDE.md`, `GEMINI.md`,
+`OPENCODE.md` symlinked to it) is the operating contract for any harness.
 
 ## Status
 
