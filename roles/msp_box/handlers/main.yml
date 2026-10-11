@@ -2,3 +2,4 @@
   ansible.builtin.systemd:
     name: msp-llm-firewall
     state: reloaded
+  when: not ansible_check_mode     # under --check the unit may not exist yet
