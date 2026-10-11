@@ -28,16 +28,17 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
 7. Client-specific values live only in `group_vars/<site>.yml` and `host_vars/`, and in the client section of
    the AGENTS.md they generate. Captured host output lives in `captures/<site>-<date>/` and is never shipped
    to a node.
-8. Changes run through a root-owned broker on the box (`roles/msp_broker`): the AI proposes a registered
-   operation, a frozen script or a frozen plan over a Unix socket; a separate technician account (in
-   `msp-approvers`) approves with `msp-approve`; the broker revalidates the target state and the frozen hash,
-   executes the exact argv once and writes a root-owned receipt. The AI has no host credentials and cannot
-   approve its own proposal. The staged-command gate stays as the host-side boundary (defense in depth): the
-   broker reaches a hypervisor only through a dedicated per-site `role=broker` key (generated on that site's
-   box, registered only on that site's hosts, pinned to the box's address when the inventory carries an IP),
-   and the host side bounds it twice: `msp-dispatch` lets the broker key run only adapter reads, `exec` and
-   `run-script`, and `msp-execverb` accepts only operations listed for this site in
-   `/etc/msp/exec.allowlist` (empty refuses everything), allowlisted units and allowlisted interpreters.
+8. With `msp_broker: true` (off by default), changes also run through a root-owned broker on the box
+   (`roles/msp_broker`): the AI proposes a registered operation, a frozen script or a frozen plan over a Unix
+   socket; a separate technician account (in `msp-approvers`) approves with `msp-approve`; the broker
+   revalidates the target state and the frozen hash, executes the exact argv once and writes a root-owned
+   receipt. The AI has no host credentials and cannot approve its own proposal. The staged-command gate stays
+   as the host-side boundary (defense in depth): the broker reaches a hypervisor only through a dedicated
+   per-site `role=broker` key (generated on that site's box, registered only on that site's hosts, pinned to
+   the box's address when the inventory carries an IP), and the host side bounds it twice: `msp-dispatch`
+   lets the broker key run only adapter reads, `exec` and `run-script`, and `msp-execverb` accepts only
+   operations listed for this site in `/etc/msp/exec.allowlist` (empty refuses everything), allowlisted units
+   and allowlisted interpreters.
 
 ## Layout
 

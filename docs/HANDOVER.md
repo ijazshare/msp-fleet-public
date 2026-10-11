@@ -47,6 +47,8 @@ Phase 1, harden before go-live (code, sandbox only, one commit). Done 2026-10-10
 nft drop (privileged containers run nftables), so the SITE check is only the deployed rules. Open: agy's telemetry
 switch is only its interactive `/config`, so `msp_tools_enabled` defaults to `[claude, opencode]`; agy is opt-in per
 site until its settings key is known. Existing boxes keep an agy already installed (the list never uninstalls).
+The SITE --check then showed the broker role ran on every box: it is now `msp_broker` (default false), with
+AGENTS.md's broker text and the hypervisors' broker key line only when it is on.
 1. nftables for the `llm` UID, on by default: allow DNS, the public internet (LLM vendor, git remote) and SSH to
    this site's gated hypervisors (`msp`); drop every other private range. Today llm reaches the hypervisor's root
    password SSH and :8006. If the sandbox cannot run nftables, check the rendered rules with `nft -c -f` and prove
@@ -80,6 +82,8 @@ Phase 4, broker, only if one command at a time gets in the way. Fix all of these
   cross-multiplied (msp_broker tasks `product`); run-script output skips the host's redaction.
 - run-script only with host-verified signatures (`ssh-keygen -Y verify` in msp-execverb; hardware key per D9).
 - README decision 4 and SPEC §3/§8 promise no root path from the box; true only while `script.run` stays off.
+- `msp_broker` role under `--check` on a box without it: the group task does not create the groups, so the next
+  task fails ("Group msp-broker does not exist"). Make the role check-mode clean before enabling it anywhere.
 
 Later, on demand only: UniFi and printers read-only through site-local accounts. Keep ConnectWise, ScreenConnect,
 Axcient, M365 and Google credentials off client boxes (MSP-wide or tenant-admin; conflicts with D1).

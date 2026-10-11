@@ -3,6 +3,6 @@
 # accepted only for the adapter reads, registered exec operations and frozen scripts.
 restrict {{ msp_agent_pubkeys.interactive }} role=interactive
 restrict {{ msp_agent_pubkeys.cron }} role=cron
-{% if msp_broker_pubkey | default('') | length > 0 %}
+{% if msp_broker_pubkey | default('', true) | length > 0 %}
 restrict{% if msp_broker_from | default('') | length > 0 %},from="{{ msp_broker_from }}"{% endif %} {{ msp_broker_pubkey }} role=broker
 {% endif %}

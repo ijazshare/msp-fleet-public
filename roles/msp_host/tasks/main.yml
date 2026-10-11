@@ -115,7 +115,7 @@
     src: /etc/msp/secrets/proxmox_key.pub
   delegate_to: "{{ msp_box_host }}"
   register: broker_pub
-  when: msp_box_host != ""
+  when: msp_box_host != "" and (hostvars[msp_box_host].msp_broker | default(false) | bool)   # broker off: no broker key line
   failed_when: false
 
 - name: Agent keys as a local fact

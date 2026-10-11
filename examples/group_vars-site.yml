@@ -12,6 +12,7 @@ msp_baseline:
   # backup.crit_age: 180000
 msp_repo_url: git@github.com:ORG/CLIENT-REPO.git   # the client's own record; the box pushes session notes there
 # Broker (approval-gated changes). client_id/client_name appear on the technician's approval card.
+# msp_broker: true                                # off by default; nothing below applies until it is on
 # msp_broker_client_id: client_abc
 # msp_broker_client_name: ABC Accounting
 # msp_broker_approvers: [msp-tech]                 # Unix accounts that may approve; keys below log into them
