@@ -1,2 +1,3 @@
 keydir=/home/{{ msp_llm_user }}/.ssh
 never_probe={{ (msp_never_stage[0] | default('')) | quote }}
+llm_firewall={{ 1 if msp_llm_firewall else 0 }}

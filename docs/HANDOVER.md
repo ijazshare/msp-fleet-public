@@ -6,7 +6,7 @@ Resume from here. Read this, then `docs/BROKER-SPEC.md` (the full plan, authorit
 
 ## Status
 
-- Phases 1–3 are implemented, tested and committed; the working tree is clean at `3fea366`.
+- Broker Phases 1–3 are implemented, tested and committed (`3fea366`). Go-live Phase 1 is below.
   - `dcbcc79` broker core: socket, SO_PEERCRED identity, registry, policy, freeze/hash, expiry,
     single-use approval, receipts, mock adapter, Ansible role, 53 unit tests.
   - `4c4ee21` Proxmox adapter over the restricted host path (`exec`/`run-script`, preconditions, drift refusal).
@@ -43,7 +43,10 @@ BROKER-SPEC Phases 4–9 are not needed to go live.
 
 Phase 0 (done 2026-10-10): venv rebuilt for Python 3.14, PROOF OK, both repos pushed at `bd7892c`.
 
-Phase 1, harden before go-live (code, sandbox only, one commit):
+Phase 1, harden before go-live (code, sandbox only, one commit). Done 2026-10-10, PROOF OK; sandbox proves the
+nft drop (privileged containers run nftables), so the SITE check is only the deployed rules. Open: agy's telemetry
+switch is only its interactive `/config`, so `msp_tools_enabled` defaults to `[claude, opencode]`; agy is opt-in per
+site until its settings key is known. Existing boxes keep an agy already installed (the list never uninstalls).
 1. nftables for the `llm` UID, on by default: allow DNS, the public internet (LLM vendor, git remote) and SSH to
    this site's gated hypervisors (`msp`); drop every other private range. Today llm reaches the hypervisor's root
    password SSH and :8006. If the sandbox cannot run nftables, check the rendered rules with `nft -c -f` and prove

@@ -3,3 +3,5 @@ case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH";; 
 # Claude Code: only the conversation leaves this box. No version pings, no usage or crash telemetry.
 export DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1 DISABLE_AUTOUPDATER=1
 # OpenRouter key for opencode: set once with `opencode auth login` (stored in ~/.local/share/opencode), never here.
+# OpenCode: no share links, no self-update (root-owned file; a project opencode.json can still add providers).
+export OPENCODE_CONFIG=/etc/msp/opencode.json OPENCODE_DISABLE_AUTOUPDATE=1

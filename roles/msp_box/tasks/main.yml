@@ -99,6 +99,72 @@
       interactive: "{{ (agent_pub.results[0].content | b64decode).split()[0:2] | join(' ') }}"
       cron: "{{ (agent_pub.results[1].content | b64decode).split()[0:2] | join(' ') }}"
 
+- name: llm egress firewall
+  when: msp_llm_firewall
+  block:
+    - name: nftables
+      ansible.builtin.apt:
+        name: nftables
+        state: present
+
+    - name: IPv4 addresses of this site's gated hypervisors (resolved at deploy; a re-addressed host needs a re-run)
+      ansible.builtin.command: getent ahostsv4 {{ hostvars[item].ansible_host }}
+      loop: "{{ groups['pve_hosts'] | default([]) }}"
+      when: hostvars[item].site == site and (hostvars[item].msp_gate | default(true))
+      register: llm_fw_resolved
+      changed_when: false
+
+    - name: Collect them
+      ansible.builtin.set_fact:
+        msp_llm_hypervisor_addrs: "{{ llm_fw_resolved.results | selectattr('stdout', 'defined') | map(attribute='stdout_lines') | flatten | map('split') | map('first') | unique | sort }}"
+
+    - name: Rules (checked by nft before they replace the old file)
+      ansible.builtin.template:
+        src: llm.nft.j2
+        dest: /etc/msp/llm.nft
+        owner: root
+        group: root
+        mode: "0644"
+        validate: nft -c -f %s
+      notify: reload-llm-firewall
+
+    - name: Unit that loads them before any user login
+      ansible.builtin.copy:
+        src: msp-llm-firewall.service
+        dest: /etc/systemd/system/msp-llm-firewall.service
+        owner: root
+        group: root
+        mode: "0644"
+      register: llm_fw_unit
+
+    - name: Loaded now and at every boot
+      ansible.builtin.systemd:
+        name: msp-llm-firewall
+        enabled: true
+        state: started
+        daemon_reload: "{{ llm_fw_unit.changed }}"
+
+- name: llm egress firewall off (msp_llm_firewall is false)
+  when: not msp_llm_firewall
+  block:
+    - name: Unit disabled
+      ansible.builtin.systemd:
+        name: msp-llm-firewall
+        enabled: false
+      failed_when: false
+
+    - name: Rules unloaded
+      ansible.builtin.command: nft delete table inet msp_llm
+      register: llm_fw_del
+      changed_when: llm_fw_del.rc == 0
+      failed_when: false
+
+    - name: Unit and rules files gone
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: [/etc/systemd/system/msp-llm-firewall.service, /etc/msp/llm.nft]
+
 - name: What the nightly guarantee check probes with (sourced by root; before hosts.conf, so a timer firing mid-deploy sees no hosts, not a missing conf)
   ansible.builtin.template:
     src: guarantee.conf.j2

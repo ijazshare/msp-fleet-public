@@ -81,7 +81,7 @@ Alternatives:
 
 **Chosen: the dispatcher exposes a fixed set of read-only verbs. Each verb maps to one exact command run by a single root-owned helper that validates its arguments. The AI can call these at any time with no human involved.**
 
-The verb list to ship with: `qm-list`, `pct-list`, `qm-config <vmid>`, `pct-config <vmid>`, `zpool-status`, `zfs-list`, `pvesm-status`, `pveversion`, `df`, `journal <keyword>` from a fixed keyword list with a line and time cap, `read-new` and `read-all` for the recorded shell, and `status`. Output passes through the redaction rules before it returns.
+The verb list to ship with: `qm-list`, `pct-list`, `qm-config <vmid>`, `pct-config <vmid>`, `zpool-status`, `zfs-list`, `pvesm-status`, `pveversion`, `df`, `journal <keyword>` from a fixed keyword list with a line and time cap, `read-new` and `read-all` for the recorded shell (the last 200 lines, marked when cut), and `status`. Output passes through the redaction rules before it returns.
 
 Why: diagnostics without approvals is the whole point of having an auditor. v2 made every read a staged command, so "check ZFS" cost you a `step` and a `run`. That both wasted your time and trained you to approve reflexively. Reads that need no approval keep approvals meaningful.
 

@@ -13,6 +13,9 @@ hide() { [ "$excl" = BAD ] && { echo "refused: guests.exclude unreadable"; retur
          awk -v ex="$excl" 'BEGIN{n=split(ex,a," ");for(i=1;i<=n;i++)x[a[i]]=1} $1 in x{next} {for(i in x) if ($0 ~ "(vm|subvol|base)-" i "-") next; print}'; }
 have() { command -v "$1" >/dev/null 2>&1 || { echo "not available on this host: $1"; exit 0; }; }
 red() { sed -u -E -f /etc/msp/redact.sed; }
+# read-all/read-new go to the LLM vendor verbatim (5 s of `top` is ~10K tokens): last $cap lines, with a marker when cut
+cap=200
+capped() { awk -v n="$cap" '{l[NR%n]=$0} END{if(NR>n) printf "[msp: %d earlier lines not shown; only the last %d are returned]\n", NR-n, n; for(i=(NR>n?NR-n+1:1);i<=NR;i++) print l[i%n]}'; }
 case $verb in
   status)        { hostname; uptime; } | red ;;
   qm-list)       have qm;  qm list | hide | red ;;
@@ -38,10 +41,11 @@ case $verb in
                  if [ -n "$n" ]; then cat "/var/lib/msp/state/$n.state" 2>/dev/null || echo "no such state"; else for f in /var/lib/msp/state/*.state; do [ -e "$f" ] && { echo "## $(basename "$f" .state)"; cat "$f"; }; done; fi ;;
   read-receipts) n=${1:-5}; case $n in *[!0-9]*) refuse "count";; esac
                  ls -1t /var/spool/msp/receipts/*.txt 2>/dev/null | head -n "$n" | while read -r f; do echo "## $(basename "$f")"; cat "$f"; done | red ;;
-  read-all)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }; cat "$f" ;;
+  read-all)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }; capped < "$f" ;;
   read-new)      f=$(ls -1t /var/log/msp/rec/*.clean 2>/dev/null | head -n 1); [ -n "$f" ] || { echo "no recording"; exit 0; }
                  d=/var/lib/msp/agent-offsets; mkdir -p "$d"; chmod 700 "$d"; off="$d/$(basename "$f")"
                  [ -L "$off" ] && refuse "offset file is a symlink"; o=$(cat "$off" 2>/dev/null || echo 0); s=$(stat -c %s "$f")
-                 [ "$s" -gt "$o" ] && tail -c +"$((o+1))" "$f"; t=$(mktemp -p "$d") && echo "$s" > "$t" && mv -f "$t" "$off" ;;
+                 # exactly the bytes up to the size read above, so the offset never skips or repeats what the shell writes meanwhile
+                 [ "$s" -gt "$o" ] && tail -c +"$((o+1))" "$f" | head -c "$((s-o))" | capped; t=$(mktemp -p "$d") && echo "$s" > "$t" && mv -f "$t" "$off" ;;
   *) refuse "unknown verb $verb" ;;
 esac

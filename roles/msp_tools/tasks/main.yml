@@ -1,4 +1,4 @@
-# Three terminal agents for the llm user, each from its official installer, no root, no services.
+# The site's terminal agents (msp_tools_enabled) for the llm user, each from its official installer, no root, no services.
 - name: Installer prerequisites
   ansible.builtin.apt:
     name: [curl, ca-certificates, unzip]
@@ -19,6 +19,7 @@
   become: true
   become_user: "{{ msp_llm_user }}"
   environment: {HOME: "/home/{{ msp_llm_user }}"}
+  when: "'claude' in msp_tools_enabled"
 
 - name: Antigravity CLI (agy)
   ansible.builtin.shell: curl -fsSL https://antigravity.google/cli/install.sh | bash
@@ -27,6 +28,7 @@
   become: true
   become_user: "{{ msp_llm_user }}"
   environment: {HOME: "/home/{{ msp_llm_user }}"}
+  when: "'agy' in msp_tools_enabled"
 
 - name: OpenCode (OpenRouter and any other provider)
   ansible.builtin.shell: curl -fsSL https://opencode.ai/install | bash
@@ -35,6 +37,7 @@
   become: true
   become_user: "{{ msp_llm_user }}"
   environment: {HOME: "/home/{{ msp_llm_user }}"}
+  when: "'opencode' in msp_tools_enabled"
 
 - name: opencode on the same path as the others
   ansible.builtin.file:
@@ -43,6 +46,17 @@
     state: link
     owner: "{{ msp_llm_user }}"
     group: "{{ msp_llm_user }}"
+  when: "'opencode' in msp_tools_enabled"
+
+- name: OpenCode defaults (no share links, no self-update; root-owned, named by OPENCODE_CONFIG in .bashrc-tools)
+  ansible.builtin.copy:
+    dest: /etc/msp/opencode.json
+    content: |
+      {"$schema": "https://opencode.ai/config.json", "share": "disabled", "autoupdate": false}
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'opencode' in msp_tools_enabled"
 
 - name: Shell environment for the tools
   ansible.builtin.copy:
@@ -64,7 +78,7 @@
 - name: Versions
   ansible.builtin.shell: |
     set -e; export PATH="$HOME/.local/bin:$PATH"
-    printf 'claude %s\nagy %s\nopencode %s\n' "$(claude --version 2>/dev/null | head -n1)" "$(agy --version 2>/dev/null | head -n1)" "$(opencode --version 2>/dev/null | head -n1)"
+    for t in {{ msp_tools_enabled | join(' ') }}; do printf '%s %s\n' "$t" "$($t --version 2>/dev/null | head -n1)"; done
   become: true
   become_user: "{{ msp_llm_user }}"
   environment: {HOME: "/home/{{ msp_llm_user }}"}

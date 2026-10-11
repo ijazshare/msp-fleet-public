@@ -252,9 +252,31 @@ h sh -c 'systemd-tmpfiles --clean /etc/tmpfiles.d/msp-rec.conf && grep -q hunter
 h test ! -f /run/msp/recording; t $? "recording ended cleanly"
 h journalctl -t msp-shell --no-pager | grep -q 'started by ops@sandbox'; t $? "the Exec seat names the operator from the ssh key that opened it"
 m read-all | grep -q 'password=<REDACTED>'; t $? "agent reads the redacted recording via read-all"
+# read cap: what reaches the vendor is the last 200 lines with a marker; read-new returns exactly what is new
+h sh -c 'f=$(ls -1t /var/log/msp/rec/*.clean | head -n1); seq 1 500 | sed "s/^/line /" >> "$f"'
+o=$(m read-all); echo "$o" | grep -q 'earlier lines not shown' && echo "$o" | grep -qx 'line 500' && echo "$o" | grep -qx 'line 301' && ! echo "$o" | grep -qx 'line 300'; t $? "read-all: last 200 lines and a truncation marker"
+m read-new >/dev/null; h sh -c 'f=$(ls -1t /var/log/msp/rec/*.clean | head -n1); printf "new-a\nnew-b\n" >> "$f"'
+o=$(m read-new); echo "$o" | grep -qx new-b && ! echo "$o" | grep -qE 'line 500|not shown'; t $? "read-new: only the lines written since the last read"
+m read-new | grep -q new-a; [ $? != 0 ]; t $? "read-new: the offset moved past them"
+# llm egress (nftables on the box): SSH to the gated hypervisor only; root untouched
+x nft list table inet msp_llm >/dev/null; t $? "llm egress rules loaded"
+x systemctl show -p RequiredBy --value msp-llm-firewall | grep -q systemd-user-sessions; t $? "user logins require the egress rules (fail closed)"
+x su -s /bin/bash -c 'exec 3<>/dev/tcp/msp-sandbox-host/22 && head -c 4 <&3' llm | grep -q SSH-; t $? "llm reaches SSH on the gated hypervisor"
+h systemd-run -q --unit msp-test-8006 python3 -m http.server 8006 >/dev/null 2>&1; sleep 1
+x bash -c 'exec 3<>/dev/tcp/msp-sandbox-host/8006'; t $? "root on the box reaches a non-SSH port on the hypervisor"
+hyp() { x nft list chain inet msp_llm out | grep '@hypervisors counter' | sed -n 's/.*packets \([0-9]*\).*/\1/p'; }
+h0=$(hyp); x su -s /bin/bash -c 'timeout 5 bash -c "exec 3<>/dev/tcp/msp-sandbox-host/8006"' llm 2>/dev/null; r=$?; h1=$(hyp)
+[ $r != 0 ] && [ "${h1:-0}" -gt "${h0:-0}" ]; t $? "llm cannot reach a non-SSH port on the hypervisor (the :8006 web UI), refused by the hypervisor rule ($h0 -> $h1)"
+h systemctl stop msp-test-8006 >/dev/null 2>&1
+rej() { x nft list chain inet msp_llm out | grep 192.0.2.1/16 | sed -n 's/.*packets \([0-9]*\).*/\1/p'; }
+r0=$(rej); x su -s /bin/bash -c 'timeout 5 bash -c "exec 3<>/dev/tcp/192.0.2.1/22"' llm 2>/dev/null; r=$?; r1=$(rej)
+[ $r != 0 ] && [ "${r1:-0}" -gt "${r0:-0}" ]; t $? "llm to any other private address is refused by the rule ($r0 -> $r1)"
 # guarantee self-test from the box
 x systemctl start msp-check@guarantee.service
 x grep -q '^rc=0' /var/lib/msp/state/guarantee.state; t $? "guarantee self-test: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state)"
+x nft delete table inet msp_llm; x systemctl start msp-check@guarantee.service
+x grep -q 'box:llm-egress' /var/lib/msp/state/guarantee.state; t $? "guarantee goes CRIT when the llm egress rules are flushed"
+x systemctl reload msp-llm-firewall && x nft list table inet msp_llm >/dev/null; t $? "reloading the unit restores them"
 x sh -c 'cp /etc/msp/guarantee.conf /tmp/g.bak; cp /etc/msp/hosts.conf /tmp/h.bak; sed -i "s/^never_probe=.*/never_probe=/" /etc/msp/guarantee.conf; echo "again=msp-sandbox-host" >> /etc/msp/hosts.conf; systemctl start msp-check@guarantee.service; cp /tmp/g.bak /etc/msp/guarantee.conf; cp /tmp/h.bak /etc/msp/hosts.conf'
 x grep -q '^rc=1' /var/lib/msp/state/guarantee.state && x grep -q '2 hosts.*no never-list configured' /var/lib/msp/state/guarantee.state; t $? "guarantee: every hosts.conf line probed, empty never-list is WARN: $(x sed -n 's/^msg=//p' /var/lib/msp/state/guarantee.state | cut -c1-70)"
 x sh -c 'mv /etc/msp/hosts.conf /tmp/h.bak; mv /etc/msp/guarantee.conf /tmp/g.bak; systemctl start msp-check@guarantee.service; r=$?; mv /tmp/h.bak /etc/msp/hosts.conf; mv /tmp/g.bak /etc/msp/guarantee.conf; exit $r' && x grep -q '^msg=OK no hosts declared' /var/lib/msp/state/guarantee.state; t $? "guarantee mid-deploy (msp_box not yet run) is OK, not a broken checker"

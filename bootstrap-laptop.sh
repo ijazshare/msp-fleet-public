@@ -21,9 +21,10 @@ if [[ -d "$SRC" && ! -L "$SRC" ]]; then mv "$SRC" "$DST"; ln -s "$DST" "$SRC"; f
 mkdir -p "$DST/runs"
 chgrp -R fleet "$DST"; chmod -R g+rwX "$DST"; find "$DST" -type d -exec chmod g+s {} +
 
-# One Ansible for both users, inside the shared repo.
-if [[ ! -x "$DST/.venv/bin/ansible-playbook" ]]; then
-    python3 -m venv "$DST/.venv"
+# One Ansible for both users, inside the shared repo. A Python upgrade leaves the venv's scripts in place but
+# dead, so test the import, not the file.
+if ! "$DST/.venv/bin/python3" -c 'import ansible' 2>/dev/null; then
+    python3 -m venv --clear "$DST/.venv"
     "$DST/.venv/bin/pip" install -q --upgrade pip
     "$DST/.venv/bin/pip" install -q ansible ansible-lint git-filter-repo
     chgrp -R fleet "$DST/.venv"; chmod -R g+rX "$DST/.venv"

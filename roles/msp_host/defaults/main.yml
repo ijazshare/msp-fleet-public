@@ -10,7 +10,7 @@ msp_deny_stage:                  # need label DESTRUCTIVE
   - purge
   - rollback
   - "zfs receive -F"
-msp_root_key_only: false        # true once the ops key is proven on the host: root password login off
+msp_root_key_only: true         # root password login off; false per host only until the ops key is proven there
 msp_operator_pubkeys: []         # same list as the box: names the human in receipts (from group_vars/<site>.yml)
 msp_service_allowlist: []        # systemd units the broker may restart (exact names, one per line)
 msp_interpreter_allowlist: [bash, sh, python3]   # interpreters an approved frozen script may use

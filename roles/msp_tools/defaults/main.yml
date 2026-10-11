@@ -1,2 +1,5 @@
 msp_llm_user: llm
 msp_tools_update: false          # true: re-run the installers to pull the current versions
+# per site: which terminal agents the box gets. agy stays out until its telemetry switch is set from here:
+# today it is only the interactive /config toggle, and a tool that phones home by default is not installed by default.
+msp_tools_enabled: [claude, opencode]   # any of: claude, agy, opencode

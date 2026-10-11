@@ -7,7 +7,6 @@ all:
           ansible_host: msp-sandbox-host
           site: sandbox
           msp_lab: true
-          msp_root_key_only: true
           msp_operator_pubkeys: ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl ops@sandbox"]
           msp_hc_base: http://127.0.0.1:8099
           msp_healthchecks: {}

@@ -1,0 +1,4 @@
+- name: reload-llm-firewall
+  ansible.builtin.systemd:
+    name: msp-llm-firewall
+    state: reloaded

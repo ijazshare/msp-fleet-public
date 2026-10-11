@@ -1,0 +1,19 @@
+# The llm user's egress rules. User logins wait for them: if they fail to load, only root can log in (fail closed).
+# No ExecStop: stopping this unit leaves the rules in place. After nftables.service, whose stock config flushes the
+# whole ruleset; a later `systemctl reload nftables` still does, and the nightly guarantee check pages on it.
+[Unit]
+Description=msp: egress rules for the llm user
+DefaultDependencies=no
+After=nftables.service
+Before=network-pre.target systemd-user-sessions.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/msp/llm.nft
+ExecReload=/usr/sbin/nft -f /etc/msp/llm.nft
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=systemd-user-sessions.service

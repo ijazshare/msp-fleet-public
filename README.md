@@ -11,13 +11,15 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
 ## Decisions this repo enforces
 
 1. Each site has a dedicated plain-Debian SITE BOX where the LLM runs as the unprivileged `llm` user
-   (no sudo). The box's checks run as root from systemd timers (`msp-check@<name>.timer`).
+   (no sudo). The box's checks run as root from systemd timers (`msp-check@<name>.timer`). nftables limits
+   `llm` to DNS, the public internet and SSH on this site's gated hypervisors (`msp_llm_firewall`, on by default).
 2. Hypervisors get `msp_checks`, plus `msp_host` when `msp_gate` is true (the default): the `msp-agent`
    account behind an sshd `Match` block whose ForceCommand is `msp-dispatch`, sudoers for exactly one read
    helper (`msp-readverb`), `msp-stage`, the gate `msp-gate`, and the recorded root shell `msp-shell`.
 3. Reads are free (dispatcher verbs). A change is staged one command at a time and a human approves it at the
    gate inside the recorded Exec shell: no shell metacharacters, run as an argv list, never/deny lists.
-4. Root reaches a hypervisor from the laptop (`ops`) only, never from the box.
+4. Root reaches a hypervisor from the laptop (`ops`) only, never from the box; root password login is off
+   (`msp_root_key_only`, on by default).
 5. Every session ends with a note quoted from the log, committed and pushed (`msp-end` verifies it).
 6. Checks are deterministic and local (heartbeat, systemd, disk, smart, zpool, time, backup, configdump,
    timers). Notifications go out through `msp-notify` (Healthchecks by default; webhook, SNMP trap or a
@@ -50,7 +52,7 @@ the repo (not tracked; the script builds it), `bin/ap` (ansible-playbook from th
     roles/msp_broker        the approval broker: msp-action, msp-read, msp-approve, msp-brokerd, policy,
                             SQLite state, frozen proposals, receipts, mock + proxmox adapters
     roles/msp_host          dispatcher, stage, gate, recorder + redaction, sudoers read verb, sshd Match
-    roles/msp_tools         Claude Code, agy and OpenCode for the llm user
+    roles/msp_tools         the site's terminal agents for the llm user (msp_tools_enabled: claude, opencode by default, telemetry off)
     playbooks/site.yml      build or repair a site (box, hypervisors, box known_hosts from real host keys)
     playbooks/tools.yml     msp_tools alone      playbooks/ping.yml   reachability check
     playbooks/offboard.yml  remove the boundary and accounts from a site, keeping the recordings

@@ -6,8 +6,9 @@
 hosts=/etc/msp/hosts.conf; conf=/etc/msp/guarantee.conf
 [ -s "$hosts" ] || finish "$OK" "no hosts declared"
 [ -r "$conf" ] || finish "$UNKNOWN" "$conf missing"
-keydir=""; never_probe=""; . "$conf"               # root-owned, written by msp_box (before hosts.conf): keydir, never_probe
+keydir=""; never_probe=""; llm_firewall=0; . "$conf"   # root-owned, written by msp_box (before hosts.conf): keydir, never_probe, llm_firewall
 bad=""; n=0
+[ "$llm_firewall" = 1 ] && ! nft list table inet msp_llm >/dev/null 2>&1 && bad=" box:llm-egress"   # someone flushed the llm egress rules
 try() { ssh -n -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/var/lib/msp/known_hosts -i "$1" "msp-agent@$2" "$3" 2>&1; }   # -n: ssh must not eat the hosts list on stdin
 while IFS='=' read -r name addr; do
   case $name in ''|\#*) continue;; esac

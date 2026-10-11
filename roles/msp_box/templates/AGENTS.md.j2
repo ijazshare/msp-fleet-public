@@ -17,7 +17,7 @@ by design, and it is enforced by OpenSSH and file permissions, not by this file.
     msp HOST pvesm-status           msp HOST pveversion         msp HOST df
     msp HOST journal UNIT [LINES]   (one systemd unit, at most 500 lines)
     msp HOST read-state [NAME]      (the node's check results)      msp HOST read-receipts [N]  (what the gate ran)
-    msp HOST read-new / read-all    (the redacted recording of the operator's Exec shell)
+    msp HOST read-new / read-all    (the redacted recording of the operator's Exec shell), last 200 lines
 
 Changes are staged one command at a time, and the operator approves each at the gate, on a machine you cannot see:
 

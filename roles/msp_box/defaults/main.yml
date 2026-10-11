@@ -5,3 +5,5 @@ msp_client_name: "{{ site }}"
 msp_never_stage: []              # per site: commands that can never be staged, whatever the label
 msp_client_rules: ""             # per site: extra prose for the client section of AGENTS.md
 msp_operator_pubkeys: []         # public keys allowed to log in as llm (your ops key). Per site or fleet-wide.
+msp_llm_firewall: true           # nftables: llm reaches DNS, the public internet and SSH on this site's gated hypervisors only
+msp_llm_allow: []                # per site: extra private IPv4 addresses/CIDRs llm may reach on any port (a LAN git server or model)
