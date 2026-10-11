@@ -36,12 +36,49 @@ Resume from here. Read this, then `docs/BROKER-SPEC.md` (the full plan, authorit
 `.venv` was not modified. The only lint line left is the informational "Directory expansion discovered 165
 files" warning.
 
-## Next up
+## Next up: go-live plan (agreed 2026-10-10; replaces the Phase 4+ order below BROKER-SPEC §60)
 
-Phase 4: UniFi read/discovery first (controller status, sites, devices, clients, ports, counters), then
-approval-gated `unifi.port.bounce`, `unifi.port.enable/disable`, `unifi.ap.restart`, `unifi.device.restart`.
-Credentials root/broker-only in `/etc/msp/secrets/`; stable inventory IDs; SITE-hardware tests (spec §23,
-§68) before a Phase 4 commit. Then phases 5–9 in order: printers (SNMP read-only), Windows reads, ConnectWise/
-ScreenConnect/Axcient boundaries, M365/Google Workspace read-first, optional UID network isolation.
+Most of go-live is already built: site box, gate, checks. The broker stays off (its default) until Phase 4 here.
+BROKER-SPEC Phases 4–9 are not needed to go live.
+
+Phase 0 (done 2026-10-10): venv rebuilt for Python 3.14, PROOF OK, both repos pushed at `bd7892c`.
+
+Phase 1, harden before go-live (code, sandbox only, one commit):
+1. nftables for the `llm` UID, on by default: allow DNS, the public internet (LLM vendor, git remote) and SSH to
+   this site's gated hypervisors (`msp`); drop every other private range. Today llm reaches the hypervisor's root
+   password SSH and :8006. If the sandbox cannot run nftables, check the rendered rules with `nft -c -f` and prove
+   the drop on the SITE.
+2. `msp_root_key_only: true` by default (`roles/msp_host/defaults/main.yml`).
+3. Drop `script.run` from `examples/group_vars-site.yml` (it is already off by default).
+4. Cap `read-all` / `read-new` in `roles/msp_host/files/msp-readverb` to the last N lines with a truncation marker,
+   keeping read-new's offset right (5 s of `top` is about 10K tokens sent to the vendor today).
+5. Box harnesses: a per-site list of tools for `msp_tools`, telemetry off for each (Claude Code is done in
+   `roles/msp_tools/files/bashrc-tools`; agy and OpenCode are not configured).
+6. `bootstrap-laptop.sh`: rebuild the venv when `.venv/bin/python3 -c 'import ansible'` fails (a Python upgrade
+   left a dead venv that bootstrap skipped because `ansible-playbook` still existed).
+
+Phase 2, exit gate on the SITE (operator, calendar time): the six items in `docs/EXIT-GATE.md`. Start the
+14-day window as soon as Phase 1 is deployed there.
+
+Phase 3, first client: `bin/new-site`, group_vars, `ap playbooks/site.yml -l SITE --check --diff`, then the real
+run. Commands for real hosts are handed to the operator to run as `ops`; an agent never runs them.
+
+Phase 4, broker, only if one command at a time gets in the way. Fix all of these before enabling it at any client
+(review 2026-10-10, each verified in code):
+- `approve()` checks status outside the execution lock (service.py ~384 vs ~392): two approvals can both run, and
+  a cancel can race an approve.
+- AI-declared text reaches the approval card unescaped (msp-approve:54-57; `sanitize()` strips only CSI).
+- The card never shows the script bytes, and labels the AI-chosen VM as TARGET although `run_script` runs on the
+  hypervisor (proxmox.py).
+- Non-HIGH approvals are one keystroke; HIGH uses a fixed phrase the broker returns to the AI. Use a random code
+  per approval, as the gate does (D4).
+- Plans skip drift checks and fail on Proxmox; a crash mid-run leaves EXECUTING with no receipt; an `accept()`
+  OSError exits 0 so systemd never restarts it; a FIFO script path hangs a worker; approver keys are
+  cross-multiplied (msp_broker tasks `product`); run-script output skips the host's redaction.
+- run-script only with host-verified signatures (`ssh-keygen -Y verify` in msp-execverb; hardware key per D9).
+- README decision 4 and SPEC §3/§8 promise no root path from the box; true only while `script.run` stays off.
+
+Later, on demand only: UniFi and printers read-only through site-local accounts. Keep ConnectWise, ScreenConnect,
+Axcient, M365 and Google credentials off client boxes (MSP-wide or tenant-admin; conflicts with D1).
 
 Each phase: implement → unit/lint/sandbox proof → adversarial review → commit → stop for the user's review.

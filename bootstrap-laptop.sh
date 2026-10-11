@@ -28,7 +28,7 @@ if [[ ! -x "$DST/.venv/bin/ansible-playbook" ]]; then
     "$DST/.venv/bin/pip" install -q ansible ansible-lint git-filter-repo
     chgrp -R fleet "$DST/.venv"; chmod -R g+rX "$DST/.venv"
 fi
-"$DST/.venv/bin/ansible-galaxy" collection install -q -r "$DST/requirements.yml"
+"$DST/.venv/bin/ansible-galaxy" collection install -r "$DST/requirements.yml"
 
 # ops's key. Passphrase is prompted; set one.
 if [[ ! -f /home/ops/.ssh/id_ed25519 ]]; then
