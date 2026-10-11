@@ -7,9 +7,14 @@
     - role: msp_snmp
       when: msp_snmp | default(false)
     - msp_box
-    - role: msp_broker
-      when: msp_broker | default(false) | bool   # off until go-live Phase 4 (docs/HANDOVER.md)
-    - role: msp_tools
+  tasks:   # include_role, not roles: a skipped role must not template anything (delegate_to is resolved before when)
+    - name: Broker, off until go-live Phase 4 (docs/HANDOVER.md)
+      ansible.builtin.include_role:
+        name: msp_broker
+      when: msp_broker | default(false) | bool
+    - name: AI terminal tools
+      ansible.builtin.include_role:
+        name: msp_tools
       when: msp_tools_install | default(true)
 
 - name: Hypervisors

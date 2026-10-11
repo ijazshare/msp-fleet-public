@@ -84,6 +84,8 @@ Phase 4, broker, only if one command at a time gets in the way. Fix all of these
 - README decision 4 and SPEC §3/§8 promise no root path from the box; true only while `script.run` stays off.
 - `msp_broker` role under `--check` on a box without it: the group task does not create the groups, so the next
   task fails ("Group msp-broker does not exist"). Make the role check-mode clean before enabling it anywhere.
+- `msp_broker` with the proxmox adapter unset: "Read the hypervisor host key" fails on an empty `delegate_to`
+  (resolved before the block's `when`). Seen on the SITE before the role was gated.
 
 Later, on demand only: UniFi and printers read-only through site-local accounts. Keep ConnectWise, ScreenConnect,
 Axcient, M365 and Google credentials off client boxes (MSP-wide or tenant-admin; conflicts with D1).
