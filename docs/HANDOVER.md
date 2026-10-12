@@ -49,6 +49,10 @@ switch is only its interactive `/config`, so `msp_tools_enabled` defaults to `[c
 site until its settings key is known. Existing boxes keep an agy already installed (the list never uninstalls).
 The SITE --check then showed the broker role ran on every box: it is now `msp_broker` (default false), with
 AGENTS.md's broker text and the hypervisors' broker key line only when it is on.
+Deployed on the SITE 2026-10-12 (`54e8c22`): --check clean, run, rerun changed=0 on all three hosts. Verified on
+the box: llm refused :8006 on both PVEs (root reaches it), llm reaches the internet, GitHub and `msp pve status`;
+guarantee rc=0; root password SSH to host.invalid refused; rules loaded again after a reboot. The box has no sudo:
+run checks as llm with `runuser -u llm -- CMD`.
 1. nftables for the `llm` UID, on by default: allow DNS, the public internet (LLM vendor, git remote) and SSH to
    this site's gated hypervisors (`msp`); drop every other private range. Today llm reaches the hypervisor's root
    password SSH and :8006. If the sandbox cannot run nftables, check the rendered rules with `nft -c -f` and prove
@@ -62,8 +66,8 @@ AGENTS.md's broker text and the hypervisors' broker key line only when it is on.
 6. `bootstrap-laptop.sh`: rebuild the venv when `.venv/bin/python3 -c 'import ansible'` fails (a Python upgrade
    left a dead venv that bootstrap skipped because `ansible-playbook` still existed).
 
-Phase 2, exit gate on the SITE (operator, calendar time): the six items in `docs/EXIT-GATE.md`. Start the
-14-day window as soon as Phase 1 is deployed there.
+Phase 2, exit gate on the SITE (operator, calendar time): the six items in `docs/EXIT-GATE.md`. The 14-day
+window started 2026-10-12, when Phase 1 was deployed there; earliest exit 2026-10-26.
 
 Phase 3, first client: `bin/new-site`, group_vars, `ap playbooks/site.yml -l SITE --check --diff`, then the real
 run. Commands for real hosts are handed to the operator to run as `ops`; an agent never runs them.
