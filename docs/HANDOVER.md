@@ -53,6 +53,8 @@ Deployed on the SITE 2026-10-12 (`54e8c22`): --check clean, run, rerun changed=0
 the box: llm refused :8006 on both PVEs (root reaches it), llm reaches the internet, GitHub and `msp pve status`;
 guarantee rc=0; root password SSH to host.invalid refused; rules loaded again after a reboot. The box has no sudo:
 run checks as llm with `runuser -u llm -- CMD`.
+In the Scratch window (a user namespace) `msp` failed: root's files show as nobody there and ssh refused
+/etc/ssh/ssh_config.d. `msp` now runs `ssh -F none`, so it reads no ssh_config at all.
 1. nftables for the `llm` UID, on by default: allow DNS, the public internet (LLM vendor, git remote) and SSH to
    this site's gated hypervisors (`msp`); drop every other private range. Today llm reaches the hypervisor's root
    password SSH and :8006. If the sandbox cannot run nftables, check the rendered rules with `nft -c -f` and prove

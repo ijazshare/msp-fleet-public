@@ -185,6 +185,9 @@ mc() { x su -s /bin/sh -c "ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictH
 x su -s /bin/sh -c 'grep -q msp-sandbox-host /home/llm/.ssh/known_hosts' llm; t $? "box learned the hypervisor host key from Ansible (no trust-on-first-use)"
 m "'.*/touch /tmp/PWNED/e #'" status >/dev/null 2>&1; x test ! -e /tmp/PWNED; t $? "msp wrapper: sed injection via host name is inert"
 m status | grep -q 'sandbox-host'; t $? "read verb works from the box: $(m status | head -n1)"
+x sh -c 'echo "# probe" > /etc/ssh/ssh_config.d/99-msp-probe.conf; chmod 666 /etc/ssh/ssh_config.d/99-msp-probe.conf'
+o=$(x su -s /bin/sh -c 'ssh -G msp-sandbox-host' llm 2>&1); m status | grep -q 'sandbox-host' && echo "$o" | grep -q 'Bad owner'; t $? "msp reads no ssh_config: works where plain ssh refuses one (as in Scratch)"
+x rm -f /etc/ssh/ssh_config.d/99-msp-probe.conf
 m /bin/sh | grep -q 'refused: unknown verb'; t $? "shell refused: $(m /bin/sh)"
 x su -s /bin/sh -c 'ssh -o BatchMode=yes -i /home/llm/.ssh/msp_interactive msp-agent@msp-sandbox-host' llm 2>&1 | grep -q 'refused: no verb'; t $? "bare login refused"
 x su -s /bin/sh -c 'ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -i /home/llm/.ssh/msp_interactive -R 9999:localhost:22 -N msp-agent@msp-sandbox-host' llm 2>&1 | grep -qi 'refused\|prohibited\|closed\|failed'; t $? "port forwarding refused"

@@ -6,4 +6,5 @@ h=$1; shift
 case $h in ''|*[!A-Za-z0-9_-]*) echo "host name: letters, digits, _ and - only"; exit 2;; esac
 addr=$(awk -F= -v h="$h" '$1==h {print $2; exit}' /etc/msp/hosts.conf)
 case $addr in ''|*[!A-Za-z0-9.:_-]*) echo "unknown host $h"; exit 2;; esac
-exec ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 -i "$HOME/.ssh/msp_interactive" "msp-agent@$addr" "$@"
+# -F none: no ssh_config at all. In Scratch (a user namespace) root's files show as nobody and ssh would refuse them.
+exec ssh -F none -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 -i "$HOME/.ssh/msp_interactive" "msp-agent@$addr" "$@"
