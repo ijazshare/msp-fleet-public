@@ -1,6 +1,7 @@
 # msp-fleet
 
-Ansible control repo for the LLM-auditor deployment on Proxmox. The private repo (github.com/ijazshare/msp-fleet)
+Ansible control repo for msp-fleet: one site box per client where an AI reads the Proxmox hosts and proposes
+changes a technician approves. The private repo (github.com/ijazshare/msp-fleet)
 holds everything; github.com/ijazshare/msp-fleet-public is its automated export minus the site data (inventory,
 `group_vars/<site>`, `host_vars`, `captures/`), rebuilt by `bin/publish` on every push. Start a site with
 `bin/new-site`. Lives at `/srv/pve-fleet`, shared by the laptop users through the `fleet` group.
