@@ -109,7 +109,9 @@ x grep -q '1.3.6.1.4.1.8072.9999.1.2 s disk' /tmp/snmptrap.log; t $? "notify: sn
 
 # 9f msp_snmp: snmpd serves the check states to an NMS on the site LAN, read-only
 x systemctl is-active --quiet snmpd; t $? "snmpd active on the box"
-x sh -c 'out=$(msp-snmp-state disk); echo "$out rc=$?"' | grep -q 'rc=0'; t $? "msp-snmp-state prints the state and exits its rc"
+x sh -c 'printf "rc=1\nmsg=WARN snmp probe\n" > /var/lib/msp/state/snmpprobe.state'   # a known state, not this machine's disk
+o=$(x sh -c 'out=$(msp-snmp-state snmpprobe); echo "$out rc=$?"'); x rm -f /var/lib/msp/state/snmpprobe.state
+[ "$o" = "WARN snmp probe rc=1" ]; t $? "msp-snmp-state prints the state and exits its rc: $o"
 x sh -c 'snmpwalk -v2c -c public -On -t 2 127.0.0.1 1.3.6.1.4.1.8072.1.3.2.3.1.2' | grep -q 'STRING: "OK'; t $? "NMS reads the check message (nsExtendOutputFull)"
 x sh -c 'snmpwalk -v2c -c public -On -t 2 127.0.0.1 1.3.6.1.4.1.8072.1.3.2.3.1.4' | grep -q 'INTEGER: 0'; t $? "NMS reads the check rc (nsExtendOutput1Exit)"
 x sh -c 'snmpget -v2c -c wrong -t 1 -r 0 -On 127.0.0.1 1.3.6.1.2.1.1.1.0 >/dev/null 2>&1; [ $? != 0 ]'; t $? "wrong SNMP community refused"
