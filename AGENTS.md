@@ -13,7 +13,7 @@ misread, or be prompt-injected past any instruction here; the repository's tests
 
 ## What this repository is
 
-Ansible control repo for msp-fleet, an AI ops assistant for Proxmox: one site box per client where an AI works as
+Ansible control repo for msp-fleet, an AI ops assistant for a client's whole site, not only Proxmox: one site box per client where an AI works as
 the unprivileged `llm` user, gated Proxmox hypervisors, deterministic checks, and a root-owned broker that lets
 the AI propose changes a human technician approves before anything executes.
 
